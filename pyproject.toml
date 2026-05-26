@@ -28,3 +28,6 @@ include = ["debrief*"]
 
 [tool.setuptools.package-data]
 debrief = ["../templates/*"]
+
+[tool.vercel]
+entrypoint = "api.index:handler"
