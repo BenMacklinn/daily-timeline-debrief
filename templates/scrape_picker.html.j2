@@ -1,0 +1,319 @@
+<style>
+  .scrape-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 1000;
+  }
+  .scrape-modal-backdrop[hidden] { display: none !important; }
+  .scrape-modal {
+    width: min(42rem, 100%);
+    max-height: min(85vh, 720px);
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+  }
+  .scrape-modal-head {
+    padding: 1rem 1.15rem 0.75rem;
+    border-bottom: 1px solid #eee;
+  }
+  .scrape-modal-head h2 {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+  }
+  .scrape-modal-head p {
+    margin: 0;
+    color: #555;
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+  .scrape-modal-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.65rem 1.15rem;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+    font-size: 0.78rem;
+  }
+  .scrape-modal-toolbar button {
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 5px;
+    padding: 0.25rem 0.55rem;
+    font: inherit;
+    cursor: pointer;
+  }
+  .scrape-modal-toolbar button:hover { background: #f3f3f3; }
+  .scrape-modal-toolbar .count {
+    margin-left: auto;
+    color: #666;
+  }
+  .scrape-modal-body {
+    overflow: auto;
+    padding: 0.75rem 1.15rem;
+    flex: 1;
+  }
+  .scrape-row-option {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .scrape-row-option:last-child { border-bottom: 0; }
+  .scrape-row-option input {
+    flex: 0 0 auto;
+  }
+  .scrape-row-main { min-width: 0; flex: 1; }
+  .scrape-row-line {
+    font-size: 0.88rem;
+    color: #222;
+  }
+  .scrape-row-line strong {
+    font-size: 0.92rem;
+  }
+  .scrape-row-sep {
+    color: #aaa;
+    margin: 0 0.35rem;
+  }
+  .scrape-row-muted {
+    color: #777;
+  }
+  .scrape-modal-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.55rem;
+    padding: 0.85rem 1.15rem;
+    border-top: 1px solid #eee;
+    background: #fafafa;
+  }
+  .scrape-modal-foot button {
+    border-radius: 6px;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.45rem 0.85rem;
+    cursor: pointer;
+  }
+  .scrape-modal-cancel {
+    border: 1px solid #ccc;
+    background: #fff;
+  }
+  .scrape-modal-start {
+    border: 1px solid #16a34a;
+    background: #f0fdf4;
+    color: #15803d;
+  }
+  .scrape-modal-start:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .scrape-modal-loading,
+  .scrape-modal-error {
+    padding: 1.5rem 1.15rem;
+    color: #555;
+    font-size: 0.88rem;
+  }
+  .scrape-modal-error { color: #9a3412; }
+</style>
+
+<div class="scrape-modal-backdrop" id="scrape-modal" hidden>
+  <div class="scrape-modal" role="dialog" aria-labelledby="scrape-modal-title" aria-modal="true">
+    <div class="scrape-modal-head">
+      <h2 id="scrape-modal-title">Select rows</h2>
+      <p id="scrape-modal-subtitle">Loading timeline…</p>
+    </div>
+    <div class="scrape-modal-toolbar" id="scrape-modal-toolbar" hidden>
+      <button type="button" id="scrape-select-all">Select all</button>
+      <button type="button" id="scrape-select-none">Select none</button>
+      <span class="count" id="scrape-selected-count"></span>
+    </div>
+    <div class="scrape-modal-body" id="scrape-modal-body">
+      <div class="scrape-modal-loading" id="scrape-modal-loading">Fetching today&apos;s timeline sheet…</div>
+    </div>
+    <div class="scrape-modal-foot">
+      <button type="button" class="scrape-modal-cancel" id="scrape-modal-cancel">Cancel</button>
+      <button type="button" class="scrape-modal-start" id="scrape-modal-start" disabled>Start research</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const modal = document.getElementById('scrape-modal');
+    const subtitle = document.getElementById('scrape-modal-subtitle');
+    const toolbar = document.getElementById('scrape-modal-toolbar');
+    const body = document.getElementById('scrape-modal-body');
+    const loading = document.getElementById('scrape-modal-loading');
+    const startBtn = document.getElementById('scrape-modal-start');
+    const cancelBtn = document.getElementById('scrape-modal-cancel');
+    const selectAllBtn = document.getElementById('scrape-select-all');
+    const selectNoneBtn = document.getElementById('scrape-select-none');
+    const selectedCount = document.getElementById('scrape-selected-count');
+    const scrapeTodayBtn = document.getElementById('scrape-today-btn');
+
+    if (!modal || !scrapeTodayBtn) return;
+
+    let previewRows = [];
+    let scrapeRunning = false;
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function selectedLabels() {
+      return Array.from(body.querySelectorAll('input[type="checkbox"][data-row-label]:checked'))
+        .map(el => el.dataset.rowLabel);
+    }
+
+    function updateSelectedCount() {
+      const count = selectedLabels().length;
+      selectedCount.textContent = `${count} of ${previewRows.length} selected`;
+      startBtn.disabled = scrapeRunning || count === 0;
+    }
+
+    function setScrapeRunning(running) {
+      scrapeRunning = running;
+      const serverOk = window.location.protocol.startsWith('http');
+      scrapeTodayBtn.disabled = running || !serverOk;
+      startBtn.disabled = running || selectedLabels().length === 0;
+      startBtn.textContent = running ? 'Researching…' : 'Start research';
+      cancelBtn.disabled = running;
+      body.querySelectorAll('input[type="checkbox"]').forEach(el => {
+        el.disabled = running;
+      });
+      selectAllBtn.disabled = running;
+      selectNoneBtn.disabled = running;
+      document.querySelectorAll('.fetch-images-btn, #generate-debrief-btn').forEach(el => {
+        if (running) {
+          el.disabled = true;
+        } else if (serverOk && !el.hasAttribute('data-perma-disabled')) {
+          el.disabled = false;
+        }
+      });
+    }
+
+    function closeModal() {
+      if (scrapeRunning) return;
+      modal.hidden = true;
+    }
+
+    function renderRows(data) {
+      previewRows = data.rows || [];
+      loading?.remove();
+      toolbar.hidden = false;
+      subtitle.textContent = `${data.row_count} rows · ${data.date}`;
+
+      body.innerHTML = previewRows.map(row => {
+        const tag = row.tag || 'untagged';
+        return `
+          <label class="scrape-row-option">
+            <input type="checkbox" data-row-label="${escapeHtml(row.label)}">
+            <div class="scrape-row-main">
+              <span class="scrape-row-line">
+                <strong>${escapeHtml(row.label)}</strong>
+                <span class="scrape-row-sep">·</span>
+                ${escapeHtml(tag)}
+                <span class="scrape-row-sep">·</span>
+                <span class="scrape-row-muted">${row.post_count} posts</span>
+              </span>
+            </div>
+          </label>
+        `;
+      }).join('');
+
+      body.querySelectorAll('input[type="checkbox"]').forEach(el => {
+        el.addEventListener('change', updateSelectedCount);
+      });
+      updateSelectedCount();
+    }
+
+    function showError(message) {
+      loading?.remove();
+      toolbar.hidden = true;
+      body.innerHTML = `<div class="scrape-modal-error">${escapeHtml(message)}</div>`;
+      startBtn.disabled = true;
+    }
+
+    async function openModal() {
+      modal.hidden = false;
+      toolbar.hidden = true;
+      startBtn.disabled = true;
+      cancelBtn.disabled = false;
+      subtitle.textContent = 'Loading timeline…';
+      body.innerHTML = '<div class="scrape-modal-loading" id="scrape-modal-loading">Fetching today&apos;s timeline sheet…</div>';
+
+      try {
+        const response = await fetch('/api/scrape/preview');
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        renderRows(payload);
+      } catch (error) {
+        showError(`Could not load timeline: ${error.message}`);
+      }
+    }
+
+    async function startScrape() {
+      const rows = selectedLabels();
+      if (!rows.length || scrapeRunning) return;
+
+      setScrapeRunning(true);
+      try {
+        const response = await fetch('/api/scrape/today', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        window.location.href = '/';
+      } catch (error) {
+        window.alert(`Scrape failed: ${error.message}`);
+        setScrapeRunning(false);
+        updateSelectedCount();
+      }
+    }
+
+    scrapeTodayBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      openModal();
+    });
+
+    cancelBtn?.addEventListener('click', closeModal);
+    startBtn?.addEventListener('click', startScrape);
+    selectAllBtn?.addEventListener('click', () => {
+      body.querySelectorAll('input[type="checkbox"]').forEach(el => { el.checked = true; });
+      updateSelectedCount();
+    });
+    selectNoneBtn?.addEventListener('click', () => {
+      body.querySelectorAll('input[type="checkbox"]').forEach(el => { el.checked = false; });
+      updateSelectedCount();
+    });
+
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) closeModal();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (modal.hidden) return;
+      if (event.key === 'Escape') closeModal();
+    });
+  })();
+</script>

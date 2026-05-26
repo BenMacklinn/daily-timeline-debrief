@@ -14,12 +14,13 @@ from debrief.cache import load_scrape, remove_row_image, scrape_exists, update_r
 from debrief.image_urls import fetch_image_bytes, needs_image_proxy
 from debrief.models import ImageResult
 from debrief.research import fetch_topic_images
-from debrief.scrape_day import scrape_live_day
+from debrief.scrape_day import fetch_scrape_preview, scrape_live_day
 from debrief.generate_day import generate_debrief_from_cache
 
 _IMAGE_ROUTE = re.compile(r"^/api/images/([^/]+)/([^/]+)/?$")
 _IMAGE_PROXY_ROUTE = "/api/image-proxy"
 _SCRAPE_TODAY_ROUTE = "/api/scrape/today"
+_SCRAPE_PREVIEW_ROUTE = "/api/scrape/preview"
 _GENERATE_DEBRIEF_ROUTE = "/api/debrief/generate"
 
 
@@ -66,6 +67,17 @@ def create_http_handler(
                 if path == _IMAGE_PROXY_ROUTE:
                     self._serve_image_proxy(parsed.query)
                     return
+                if path == _SCRAPE_PREVIEW_ROUTE:
+                    try:
+                        payload = app.fetch_scrape_preview()
+                    except ValueError as exc:
+                        self._json_response(400, {"error": str(exc)})
+                        return
+                    except Exception as exc:
+                        self._json_response(500, {"error": str(exc)})
+                        return
+                    self._json_response(200, payload)
+                    return
                 self._json_response(404, {"error": "Not found"})
                 return
 
@@ -87,7 +99,20 @@ def create_http_handler(
 
             if path == _SCRAPE_TODAY_ROUTE:
                 try:
-                    payload = app.scrape_today()
+                    body = self._read_json_body()
+                except (json.JSONDecodeError, ValueError) as exc:
+                    self._json_response(400, {"error": str(exc)})
+                    return
+                row_labels = body.get("rows")
+                if row_labels is not None:
+                    if not isinstance(row_labels, list) or not all(
+                        isinstance(label, str) and label.strip() for label in row_labels
+                    ):
+                        self._json_response(400, {"error": "rows must be a list of row labels"})
+                        return
+                    row_labels = [label.strip() for label in row_labels]
+                try:
+                    payload = app.scrape_today(row_labels=row_labels)
                 except RuntimeError as exc:
                     self._json_response(409, {"error": str(exc)})
                     return
@@ -187,6 +212,18 @@ def create_http_handler(
                     "images": [image.model_dump(mode="json") for image in images],
                 },
             )
+
+        def _read_json_body(self) -> dict:
+            length = int(self.headers.get("Content-Length", 0))
+            if length <= 0:
+                return {}
+            raw = self.rfile.read(length)
+            if not raw:
+                return {}
+            payload = json.loads(raw.decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("JSON body must be an object")
+            return payload
 
         def _serve_image_proxy(self, query: str) -> None:
             params = parse_qs(query)
@@ -307,7 +344,10 @@ class DebriefServer:
             raise KeyError(f"Unknown row {row_label!r}")
         return row.research.images
 
-    def scrape_today(self) -> dict:
+    def fetch_scrape_preview(self) -> dict:
+        return fetch_scrape_preview()
+
+    def scrape_today(self, *, row_labels: list[str] | None = None) -> dict:
         with self._scrape_lock:
             if self._scrape_in_progress:
                 raise RuntimeError("A scrape is already in progress.")
@@ -317,6 +357,7 @@ class DebriefServer:
             result = scrape_live_day(
                 cache_base=self.cache_dir,
                 output_base=self.output_base,
+                row_labels=row_labels,
                 skip_search=self.skip_search,
                 skip_tweets=self.skip_tweets,
                 search_provider=self.search_provider,
@@ -333,6 +374,7 @@ class DebriefServer:
             "date": result.date,
             "date_iso": result.date_iso,
             "rows": len(result.scrape.rows),
+            "researched_rows": result.researched_rows,
             "posts": result.scrape.post_count,
         }
 

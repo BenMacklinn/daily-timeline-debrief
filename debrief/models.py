@@ -86,6 +86,7 @@ class ResearchBundle(BaseModel):
     search_results: list[SearchSnippet] = Field(default_factory=list)
     images: list[ImageResult] = Field(default_factory=list)
     post_summary: str = ""
+    researched: bool = True
 
 
 class RowScrape(BaseModel):

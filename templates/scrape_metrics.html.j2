@@ -1,0 +1,33 @@
+{% set unresearched_rows = scrape.rows | rejectattr('research.researched') | list %}
+{% set researched_count = scrape.rows | length - unresearched_rows | length %}
+<aside class="scrape-metrics" aria-label="Scrape metrics">
+  <div class="scrape-metrics-box">
+    <h2 class="scrape-metrics-title">Scrape</h2>
+    <dl class="scrape-metrics-list">
+      <div>
+        <dt>Date</dt>
+        <dd>{{ scrape.date_iso }}</dd>
+      </div>
+      <div>
+        <dt>Scraped</dt>
+        <dd>{{ scrape.scraped_at.strftime("%Y-%m-%d %H:%M") }}</dd>
+      </div>
+      <div>
+        <dt>Posts</dt>
+        <dd>{{ scrape.post_count }}</dd>
+      </div>
+      <div>
+        <dt>Rows</dt>
+        <dd>{{ researched_count }}/{{ scrape.rows | length }}</dd>
+      </div>
+      <div>
+        <dt>Search</dt>
+        <dd>{{ scrape.search_provider }}{% if scrape.skip_search %} (off){% endif %}</dd>
+      </div>
+      <div>
+        <dt>Cache</dt>
+        <dd>v{{ scrape.version }}</dd>
+      </div>
+    </dl>
+  </div>
+</aside>

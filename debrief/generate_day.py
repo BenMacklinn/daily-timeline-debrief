@@ -39,6 +39,9 @@ def generate_debrief_from_cache(
     row_debriefs = []
 
     for row in scrape.rows:
+        if not row.research.researched:
+            print(f"Skipping row {row.group.label} (not researched in scrape).")
+            continue
         print(f"Writing debrief for row {row.group.label}...")
         debrief = synthesize_row_debrief(
             row.group,
@@ -50,6 +53,9 @@ def generate_debrief_from_cache(
         )
         row_debriefs.append(debrief)
         print(f"  ✓ {debrief.headline}")
+
+    if not row_debriefs:
+        raise RuntimeError("No researched rows in cache. Run a full scrape on at least one row first.")
 
     daily = build_daily_debrief(
         date=scrape.date,

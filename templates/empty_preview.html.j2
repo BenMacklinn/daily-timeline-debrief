@@ -10,6 +10,7 @@
       --muted: #555;
       --border: #ddd;
       --panel-bg: #fff;
+      --app-max-width: 44rem;
     }
     * { box-sizing: border-box; }
     body {
@@ -28,6 +29,7 @@
       display: flex;
       align-items: center;
       gap: 1rem;
+      width: 100%;
     }
     .topbar h1 {
       font-size: 0.95rem;
@@ -61,10 +63,13 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 2rem;
+      padding: 1.5rem 1rem;
+      width: 100%;
+      max-width: var(--app-max-width);
+      margin: 0 auto;
     }
     .card {
-      max-width: 34rem;
+      max-width: 100%;
       background: var(--panel-bg);
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -101,8 +106,8 @@
     <div class="card">
       <h2>No research cached yet</h2>
       <p>
-        This deployment starts with an empty cache. Click <strong>Scrape today</strong> to
-        fetch the live timeline, run GPT/Tavily research, and build the Research UI.
+        Click <strong>Scrape today</strong> to load the timeline sheet, review each row,
+        then choose which rows get full GPT/Tavily research.
       </p>
       <p>
         The first scrape can take several minutes. On Vercel Hobby, long scrapes may hit the
@@ -112,37 +117,6 @@
       <p class="status" id="status"></p>
     </div>
   </main>
-  <script>
-    const btn = document.getElementById('scrape-today-btn');
-    const status = document.getElementById('status');
-
-    btn?.addEventListener('click', async () => {
-      const label = btn.textContent;
-      const confirmed = window.confirm(
-        "Fetch and research today's live timeline? This may take several minutes."
-      );
-      if (!confirmed) return;
-
-      btn.disabled = true;
-      btn.textContent = 'Scraping…';
-      status.classList.remove('error');
-      status.textContent = 'Fetching timeline, tweets, and search results…';
-
-      try {
-        const response = await fetch('/api/scrape/today', { method: 'POST' });
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload.error || `HTTP ${response.status}`);
-        }
-        status.textContent = 'Done — reloading…';
-        window.location.href = '/';
-      } catch (error) {
-        status.textContent = `Scrape failed: ${error.message}`;
-        status.classList.add('error');
-        btn.disabled = false;
-        btn.textContent = label;
-      }
-    });
-  </script>
+  {% include "scrape_picker.html.j2" %}
 </body>
 </html>
