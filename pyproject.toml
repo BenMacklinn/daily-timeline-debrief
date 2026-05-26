@@ -30,4 +30,4 @@ include = ["debrief*"]
 debrief = ["../templates/*"]
 
 [tool.vercel]
-entrypoint = "api.index:handler"
+entrypoint = "index:handler"
