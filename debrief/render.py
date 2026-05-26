@@ -56,6 +56,18 @@ def render_preview(
     )
 
 
+def render_empty_preview(
+    *,
+    date_iso: str,
+    today_date_iso: str | None = None,
+) -> str:
+    env = get_template_env()
+    template = env.get_template("empty_preview.html.j2")
+    if today_date_iso is None:
+        today_date_iso = parse_date_to_iso(default_date_pacific())
+    return template.render(date_iso=date_iso, today_date_iso=today_date_iso)
+
+
 def write_outputs(
     debrief: DailyDebrief,
     output_dir: Path,

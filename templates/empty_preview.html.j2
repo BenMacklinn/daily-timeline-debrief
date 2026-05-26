@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TBPN Preview — {{ date_iso }}</title>
+  <style>
+    :root {
+      --ink: #111;
+      --muted: #555;
+      --border: #ddd;
+      --panel-bg: #fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+    }
+    .topbar {
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0.65rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .topbar h1 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin: 0;
+    }
+    .topbar .date {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .scrape-today-btn {
+      border: 1px solid #16a34a;
+      background: #f0fdf4;
+      color: #15803d;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .scrape-today-btn:hover:not(:disabled) {
+      background: #dcfce7;
+    }
+    .scrape-today-btn:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .card {
+      max-width: 34rem;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem 1.75rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1.1rem;
+    }
+    .card p {
+      margin: 0 0 0.75rem;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 0.92rem;
+    }
+    .status {
+      margin-top: 1rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      min-height: 1.25rem;
+    }
+    .status.error {
+      color: #9a3412;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>TBPN Preview</h1>
+    <span class="date">{{ date_iso }}</span>
+    <button type="button" class="scrape-today-btn" id="scrape-today-btn">Scrape today</button>
+  </header>
+  <main>
+    <div class="card">
+      <h2>No research cached yet</h2>
+      <p>
+        This deployment starts with an empty cache. Click <strong>Scrape today</strong> to
+        fetch the live timeline, run GPT/Tavily research, and build the Research UI.
+      </p>
+      <p>
+        The first scrape can take several minutes. On Vercel Hobby, long scrapes may hit the
+        10-second function timeout — use a local <code>--serve</code> run for heavy days, or
+        upgrade to Pro for longer runs.
+      </p>
+      <p class="status" id="status"></p>
+    </div>
+  </main>
+  <script>
+    const btn = document.getElementById('scrape-today-btn');
+    const status = document.getElementById('status');
+
+    btn?.addEventListener('click', async () => {
+      const label = btn.textContent;
+      const confirmed = window.confirm(
+        "Fetch and research today's live timeline? This may take several minutes."
+      );
+      if (!confirmed) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Scraping…';
+      status.classList.remove('error');
+      status.textContent = 'Fetching timeline, tweets, and search results…';
+
+      try {
+        const response = await fetch('/api/scrape/today', { method: 'POST' });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        status.textContent = 'Done — reloading…';
+        window.location.href = '/';
+      } catch (error) {
+        status.textContent = `Scrape failed: ${error.message}`;
+        status.classList.add('error');
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+  </script>
+</body>
+</html>

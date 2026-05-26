@@ -56,10 +56,10 @@ def create_http_handler(
                 if preview.is_file():
                     self._serve_file(preview)
                     return
-                self._json_response(
-                    404,
-                    {"error": "No preview for this date. Click Scrape today."},
-                )
+                from debrief.render import render_empty_preview
+
+                html = render_empty_preview(date_iso=app.date_iso)
+                self._serve_html(html)
                 return
 
             if path.startswith("/api/"):
@@ -217,6 +217,14 @@ def create_http_handler(
             data = path.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def _serve_html(self, html: str) -> None:
+            data = html.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
