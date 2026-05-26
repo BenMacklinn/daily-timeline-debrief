@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TBPN Timeline Debrief — {{ debrief.date_iso }}</title>
+  <style>
+    :root {
+      --ink: #111;
+      --muted: #555;
+      --border: #ccc;
+      --accent: #1a1a1a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--ink);
+      line-height: 1.55;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+    }
+
+    .print-page {
+      max-width: 8.5in;
+      margin-inline: auto;
+      padding: 2rem 2.5rem;
+    }
+
+    .print-page + .print-page {
+      border-top: 1px solid var(--border);
+    }
+
+    header.page-header {
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 0.85rem;
+      margin-bottom: 1.25rem;
+    }
+
+    header.page-header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 0 0 0.25rem;
+      letter-spacing: -0.02em;
+    }
+
+    header.page-header .meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.75rem;
+    }
+
+    header.page-header .row-badge {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ink);
+    }
+
+    header.page-header .tag {
+      display: inline-block;
+      background: #f0f0f0;
+      padding: 0.08rem 0.4rem;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
+    .row-card {
+      margin: 0;
+      padding: 0;
+    }
+
+    .row-card h2 {
+      font-size: 1.35rem;
+      line-height: 1.3;
+      margin: calc(1 * 1.55em) 0 0;
+      font-weight: 700;
+    }
+
+    .section-block:first-of-type {
+      margin-top: calc(2 * 1.55em);
+    }
+
+    .section-block + .section-block {
+      margin-top: calc(2 * 1.55em);
+    }
+
+    h3.section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin: 0 0 0.55rem;
+    }
+
+    ul.glance {
+      margin: 0 0 0.25rem;
+      padding-left: 1.15rem;
+    }
+
+    ul.glance li {
+      margin-bottom: 0.5rem;
+      line-height: 1.55;
+    }
+
+    ul.glance li:last-child {
+      margin-bottom: 0;
+    }
+
+    strong {
+      font-weight: 700;
+    }
+
+    footer.page-footer {
+      margin-top: 2rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.68rem;
+      color: var(--muted);
+    }
+
+    @media print {
+      html, body {
+        height: auto;
+        padding: 0;
+        max-width: none;
+      }
+
+      .print-page {
+        max-width: none;
+        margin: 0;
+        padding: 0.45in 0.6in;
+        border: none;
+        page-break-before: always;
+        break-before: page;
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+
+      .print-page:first-child {
+        page-break-before: auto;
+        break-before: auto;
+      }
+
+      .print-page-inner {
+        padding: 0;
+        min-height: auto;
+      }
+
+      header.page-header {
+        padding-bottom: 0.5rem;
+        margin-bottom: 0.65rem;
+        break-after: avoid;
+        page-break-after: avoid;
+      }
+
+      header.page-header h1 {
+        font-size: 0.95rem;
+      }
+
+      .row-card h2 {
+        font-size: 1.05rem;
+        line-height: 1.25;
+        margin: calc(1 * 1.45em) 0 0;
+      }
+
+      .section-block:first-of-type {
+        margin-top: calc(2 * 1.45em);
+      }
+
+      .section-block + .section-block {
+        margin-top: calc(2 * 1.45em);
+      }
+
+      h3.section-title {
+        margin: 0 0 0.35rem;
+      }
+
+      ul.glance li {
+        margin-bottom: 0.35rem;
+        font-size: 0.88rem;
+        line-height: 1.45;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      footer.page-footer {
+        margin-top: 0.75rem;
+        padding-top: 0.45rem;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      a { color: inherit; text-decoration: none; }
+    }
+
+    @media screen {
+      .print-page + .print-page {
+        margin-top: 0;
+      }
+    }
+
+    @page {
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  {% for row in debrief.rows %}
+  <section class="print-page">
+    <div class="print-page-inner">
+      <header class="page-header">
+        <h1>TBPN Rundown</h1>
+        <div class="meta">
+          <span>{{ debrief.date_iso }}</span>
+          <span class="row-badge">Row {{ row.row }}</span>
+          {% if row.tag %}<span class="tag">{{ row.tag }}</span>{% endif %}
+          <span>{{ debrief.generated_at.strftime("%Y-%m-%d %H:%M %Z") if debrief.generated_at.tzinfo else debrief.generated_at.strftime("%Y-%m-%d %H:%M") }}</span>
+        </div>
+      </header>
+
+      <article class="row-card">
+        <h2>{{ row.headline | markdown_bold }}</h2>
+
+        <div class="section-block">
+          <h3 class="section-title">Key news</h3>
+          <ul class="glance">
+            {% for bullet in row.key_news %}
+            <li>{{ bullet | markdown_bold }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div class="section-block">
+          <h3 class="section-title">Background</h3>
+          <ul class="glance">
+            {% for bullet in row.background %}
+            <li>{{ bullet | markdown_bold }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        {% if row.hard_facts %}
+        <div class="section-block">
+          <h3 class="section-title">Hard facts</h3>
+          <ul class="glance">
+            {% for bullet in row.hard_facts %}
+            <li>{{ bullet }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </article>
+
+      <footer class="page-footer">
+        Daily Timeline Show Prep · timeline.tbpn.com · {{ debrief.model }} ({{ debrief.reasoning_effort }})
+      </footer>
+    </div>
+  </section>
+  {% endfor %}
+</body>
+</html>

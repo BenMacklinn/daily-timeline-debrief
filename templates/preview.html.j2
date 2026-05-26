@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TBPN Preview — {{ scrape.date_iso }}</title>
+  <style>
+    :root {
+      --ink: #111;
+      --muted: #555;
+      --border: #ddd;
+      --accent: #1a1a1a;
+      --tab-bg: #f5f5f5;
+      --panel-bg: #fff;
+      --code-bg: #f0f0f0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--tab-bg);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0.65rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+
+    .topbar h1 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+
+    .topbar .date {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.25rem;
+      margin-left: auto;
+    }
+
+    .tab {
+      border: 1px solid var(--border);
+      background: var(--tab-bg);
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.4rem 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .tab:hover { background: #eee; }
+
+    .tab.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .tab:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .panels {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
+
+    .panel {
+      display: none;
+      height: 100%;
+    }
+
+    .panel.active {
+      display: block;
+    }
+
+    .panel iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #fff;
+    }
+
+    .cache-scroll {
+      height: 100%;
+      overflow: auto;
+      padding: 1.25rem 1.5rem 2rem;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .cache-meta {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.15rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 0.75rem 1.25rem;
+      margin: 0;
+    }
+
+    .meta-grid dt {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 0 0 0.15rem;
+    }
+
+    .meta-grid dd {
+      margin: 0;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .cache-row {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.15rem 1.15rem;
+      margin-bottom: 1rem;
+    }
+
+    .cache-row-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.65rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .row-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .tag {
+      font-size: 0.68rem;
+      background: var(--code-bg);
+      padding: 0.12rem 0.45rem;
+      border-radius: 3px;
+    }
+
+    .row-stats {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    .topic-chip {
+      font-size: 0.78rem;
+      color: var(--ink);
+      flex: 1 1 12rem;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fetch-images-btn {
+      border: 1px solid #1a56db;
+      background: #e8f0fe;
+      color: #1a56db;
+      font: inherit;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .fetch-images-btn:hover:not(:disabled) {
+      background: #d8e6fd;
+    }
+
+    .fetch-images-btn:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
+    .serve-banner {
+      background: #fff8e6;
+      border: 1px solid #f0d58c;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    .serve-banner code {
+      font-size: 0.78rem;
+    }
+
+    .image-block {
+      border-top: 1px dashed var(--border);
+      padding-top: 0.85rem;
+    }
+
+    .image-status {
+      margin: 0 0 0.65rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.65rem;
+    }
+
+    .image-card {
+      margin: 0;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fafafa;
+      position: relative;
+    }
+
+    .image-card a {
+      display: block;
+      aspect-ratio: 4 / 3;
+      background: #eee;
+    }
+
+    .image-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .image-card.image-load-failed {
+      display: none;
+    }
+
+    .image-card figcaption,
+    .image-source {
+      margin: 0;
+      padding: 0.35rem 0.45rem;
+      font-size: 0.68rem;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .image-source {
+      padding-top: 0;
+    }
+
+    .image-source a {
+      color: #1a56db;
+      text-decoration: none;
+    }
+
+    .image-error {
+      color: #9a3412;
+    }
+
+    .slideshow-btn {
+      border: 1px solid #0f766e;
+      background: #ecfdf5;
+      color: #0f766e;
+      font: inherit;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .slideshow-btn:hover:not(:disabled) {
+      background: #d1fae5;
+    }
+
+    .slideshow-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .image-card .image-thumb-btn {
+      display: block;
+      width: 100%;
+      padding: 0;
+      border: none;
+      background: none;
+      cursor: pointer;
+    }
+
+    .image-remove-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      z-index: 2;
+      width: 22px;
+      height: 22px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+      font: inherit;
+      font-size: 0.95rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .image-remove-btn:hover:not(:disabled) {
+      background: rgba(153, 27, 27, 0.92);
+    }
+
+    .image-remove-btn:disabled {
+      opacity: 0.5;
+      cursor: wait;
+    }
+
+    body.slideshow-open {
+      overflow: hidden;
+    }
+
+    .slideshow-root {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: #000;
+      color: #fff;
+    }
+
+    .slideshow-root[hidden] {
+      display: none !important;
+    }
+
+    .slideshow-stage {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    .slideshow-kenburns {
+      position: absolute;
+      inset: 0;
+      opacity: 1;
+      transition: opacity 0.9s ease;
+    }
+
+    .slideshow-root.is-fading .slideshow-kenburns {
+      opacity: 0;
+    }
+
+    .slideshow-kenburns img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      will-change: transform;
+    }
+
+    .slideshow-kenburns.kb-0 img {
+      animation: kenburns-0 8s ease-in-out forwards;
+    }
+
+    .slideshow-kenburns.kb-1 img {
+      animation: kenburns-1 8s ease-in-out forwards;
+    }
+
+    .slideshow-kenburns.kb-2 img {
+      animation: kenburns-2 8s ease-in-out forwards;
+    }
+
+    .slideshow-kenburns.kb-3 img {
+      animation: kenburns-3 8s ease-in-out forwards;
+    }
+
+    @keyframes kenburns-0 {
+      from { transform: scale(1) translate(0, 0); }
+      to { transform: scale(1.18) translate(-4%, -2%); }
+    }
+
+    @keyframes kenburns-1 {
+      from { transform: scale(1.16) translate(4%, 2%); }
+      to { transform: scale(1.02) translate(0, 0); }
+    }
+
+    @keyframes kenburns-2 {
+      from { transform: scale(1) translate(0, 0); }
+      to { transform: scale(1.2) translate(3%, -3%); }
+    }
+
+    @keyframes kenburns-3 {
+      from { transform: scale(1.14) translate(-3%, 1%); }
+      to { transform: scale(1.04) translate(2%, 2%); }
+    }
+
+    .slideshow-ui {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 1.25rem 1.5rem;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent 22%, transparent 72%, rgba(0,0,0,0.65));
+    }
+
+    .slideshow-top,
+    .slideshow-bottom {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      pointer-events: auto;
+    }
+
+    .slideshow-meta {
+      max-width: min(70vw, 900px);
+    }
+
+    .slideshow-row {
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.85;
+      margin-bottom: 0.35rem;
+    }
+
+    .slideshow-caption {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.45;
+      text-shadow: 0 1px 8px rgba(0,0,0,0.8);
+    }
+
+    .slideshow-counter {
+      font-size: 0.85rem;
+      font-weight: 600;
+      opacity: 0.9;
+      white-space: nowrap;
+    }
+
+    .slideshow-close {
+      border: 1px solid rgba(255,255,255,0.35);
+      background: rgba(0,0,0,0.35);
+      color: #fff;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.45rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .slideshow-close:hover {
+      background: rgba(255,255,255,0.12);
+    }
+
+    .slideshow-hint {
+      margin: 0;
+      font-size: 0.72rem;
+      opacity: 0.75;
+    }
+
+    .cache-block {
+      margin-top: 0.85rem;
+    }
+
+    .cache-block h3 {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 0 0 0.45rem;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .badge {
+      font-size: 0.6rem;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: 0;
+      background: #e8f0fe;
+      color: #1a56db;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+    }
+
+    .mono, .sub {
+      font-size: 0.82rem;
+      margin: 0;
+    }
+
+    .sub { color: var(--muted); margin-top: 0.25rem; }
+
+    .query-list {
+      margin: 0;
+      padding-left: 1.1rem;
+    }
+
+    .query-list li { margin-bottom: 0.3rem; }
+
+    code {
+      font-size: 0.78rem;
+      background: var(--code-bg);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+    }
+
+    .tweet-card {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.65rem 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .tweet-head {
+      font-size: 0.72rem;
+      color: var(--muted);
+      display: flex;
+      gap: 0.5rem;
+      align-items: baseline;
+      margin-bottom: 0.35rem;
+    }
+
+    .tweet-head a { color: #1a56db; }
+
+    .tweet-text {
+      margin: 0;
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 0.92rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .missing {
+      margin: 0;
+      font-size: 0.82rem;
+      color: #8b4513;
+      font-style: italic;
+    }
+
+    .source-card {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 0.4rem;
+      overflow: hidden;
+    }
+
+    .source-card summary {
+      cursor: pointer;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      list-style: none;
+    }
+
+    .source-card summary::-webkit-details-marker { display: none; }
+
+    .source-title {
+      flex: 1;
+      font-weight: 600;
+    }
+
+    .source-card a {
+      font-size: 0.72rem;
+      color: #1a56db;
+      text-decoration: none;
+    }
+
+    .source-body {
+      margin: 0;
+      padding: 0.65rem 0.75rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 320px;
+      overflow: auto;
+      background: #fafafa;
+    }
+
+    .query-label {
+      margin: 0.65rem 0 0.35rem;
+      font-size: 0.75rem;
+    }
+
+    .query-label:first-child { margin-top: 0; }
+
+    .empty-rundown {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .print-btn {
+      border: 1px solid var(--border);
+      background: var(--panel-bg);
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .print-btn:hover {
+      background: #eee;
+    }
+
+    .print-btn:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
+    .scrape-today-btn {
+      border-color: #15803d;
+      background: #ecfdf3;
+      color: #15803d;
+    }
+
+    .scrape-today-btn:hover:not(:disabled) {
+      background: #dcfce7;
+    }
+
+    .generate-debrief-btn {
+      border-color: #7c3aed;
+      background: #f5f3ff;
+      color: #6d28d9;
+    }
+
+    .generate-debrief-btn:hover:not(:disabled) {
+      background: #ede9fe;
+    }
+
+    @media print {
+      .topbar { display: none !important; }
+      body { height: auto; background: #fff; }
+      .panels { height: auto; }
+      #panel-cache { display: none !important; }
+      #panel-rundown {
+        display: block !important;
+        height: auto !important;
+      }
+      #panel-rundown iframe {
+        height: auto !important;
+        min-height: 0 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>TBPN Preview</h1>
+    <span class="date">{{ scrape.date_iso }}</span>
+    <button
+      type="button"
+      class="print-btn scrape-today-btn"
+      id="scrape-today-btn"
+      title="Fetch and research today's live timeline sheet"
+    >Scrape today</button>
+    {% if not has_debrief %}
+    <button
+      type="button"
+      class="print-btn generate-debrief-btn"
+      id="generate-debrief-btn"
+      title="Generate GPT rundown from cached research"
+    >Generate rundown</button>
+    {% endif %}
+    <nav class="tabs" role="tablist">
+      <button class="tab active" role="tab" aria-selected="true" data-panel="rundown"{% if not has_debrief %} disabled title="Run debrief first"{% endif %}>Rundown</button>
+      <button class="tab" role="tab" aria-selected="false" data-panel="cache">Research</button>
+      {% if has_debrief %}
+      <a class="print-btn" href="debrief.html" target="_blank" rel="noopener">Open printable</a>
+      {% endif %}
+    </nav>
+  </header>
+
+  <div class="panels">
+    <section class="panel active" id="panel-rundown" role="tabpanel">
+      {% if has_debrief %}
+      <iframe src="debrief.html" title="TBPN Rundown"></iframe>
+      {% else %}
+      <div class="empty-rundown">
+        No debrief yet — review research, fetch images, then click
+        <strong>Generate rundown</strong> above.
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="panel" id="panel-cache" role="tabpanel">
+      <div class="cache-scroll">
+        <div class="serve-banner" id="serve-banner" hidden>
+          Image search needs the local server. Run
+          <code>python -m debrief --date {{ scrape.date }} --serve</code>
+          and open the URL it prints (not this file directly).
+        </div>
+        {% include "cache_panel.html.j2" %}
+      </div>
+    </section>
+  </div>
+
+  <div class="slideshow-root" id="slideshow-root" hidden>
+    <div class="slideshow-stage">
+      <div class="slideshow-kenburns kb-0" id="slideshow-kenburns">
+        <img id="slideshow-image" alt="">
+      </div>
+    </div>
+    <div class="slideshow-ui">
+      <div class="slideshow-top">
+        <div class="slideshow-meta">
+          <div class="slideshow-row" id="slideshow-row"></div>
+          <p class="slideshow-caption" id="slideshow-caption"></p>
+        </div>
+        <button type="button" class="slideshow-close" id="slideshow-close">Close (Esc)</button>
+      </div>
+      <div class="slideshow-bottom">
+        <p class="slideshow-hint">← → navigate · auto-advance after pan/zoom</p>
+        <span class="slideshow-counter" id="slideshow-counter"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DATE_ISO = {{ scrape.date_iso | tojson }};
+    const TODAY_ISO = {{ today_date_iso | tojson }};
+    const tabs = document.querySelectorAll('.tab:not([disabled])');
+    const panels = document.querySelectorAll('.panel');
+    const canFetchImages = window.location.protocol.startsWith('http');
+
+    if (!canFetchImages) {
+      document.getElementById('serve-banner')?.removeAttribute('hidden');
+      document.querySelectorAll('.fetch-images-btn').forEach(btn => {
+        btn.disabled = true;
+        btn.title = 'Start the local server with --serve';
+      });
+      document.querySelectorAll('.image-remove-btn').forEach(btn => {
+        btn.disabled = true;
+        btn.title = 'Start the local server with --serve';
+      });
+      document.getElementById('scrape-today-btn')?.setAttribute('disabled', 'disabled');
+    } else if (DATE_ISO === TODAY_ISO) {
+      const scrapeBtn = document.getElementById('scrape-today-btn');
+      if (scrapeBtn) scrapeBtn.textContent = 'Refresh today';
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+    }
+
+    function needsImageProxy(url) {
+      const lower = String(url || '').toLowerCase();
+      return ['gettyimages.com', 'reutersconnect.com', 'lookaside.fbsbx.com', 'fbcdn.net']
+        .some(marker => lower.includes(marker));
+    }
+
+    function displayImageUrl(url) {
+      if (!url) return '';
+      return needsImageProxy(url)
+        ? `/api/image-proxy?url=${encodeURIComponent(url)}`
+        : url;
+    }
+
+    function updateImageStatus(row, count) {
+      const status = document.querySelector(`[data-image-status="${row}"]`);
+      const slideshowBtn = document.querySelector(`[data-slideshow-row="${row}"]`);
+      if (status) {
+        status.classList.remove('image-error');
+        if (count > 0) {
+          status.textContent = `${count} image${count === 1 ? '' : 's'} saved (max 15).`;
+        } else {
+          status.textContent = 'Click “Find images” to pull tweet media first; Tavily runs only if fewer than 5 tweet images. Use × to drop bad hits.';
+        }
+      }
+      if (slideshowBtn) slideshowBtn.disabled = count === 0;
+    }
+
+    function renderImages(row, images) {
+      const grid = document.querySelector(`[data-image-grid="${row}"]`);
+      const status = document.querySelector(`[data-image-status="${row}"]`);
+      const slideshowBtn = document.querySelector(`[data-slideshow-row="${row}"]`);
+      if (!grid || !status) return;
+
+      if (!images.length) {
+        status.textContent = 'No images found for this topic.';
+        status.classList.add('image-error');
+        grid.innerHTML = '';
+        if (slideshowBtn) slideshowBtn.disabled = true;
+        return;
+      }
+
+      status.classList.remove('image-error');
+      status.textContent = `${images.length} image${images.length === 1 ? '' : 's'} saved (max 15).`;
+      if (slideshowBtn) slideshowBtn.disabled = false;
+
+      grid.innerHTML = images.map(image => buildImageCardHTML(image)).join('');
+    }
+
+    function buildImageCardHTML(image) {
+      const alt = escapeHtml(image.description || 'Research image');
+      const caption = image.description
+        ? `<figcaption>${escapeHtml(image.description)}</figcaption>`
+        : '';
+      const source = image.source_url
+        ? `<p class="image-source"><a href="${escapeHtml(image.source_url)}" target="_blank" rel="noopener">source</a></p>`
+        : '';
+      const rawUrl = escapeHtml(image.url);
+      const src = escapeHtml(displayImageUrl(image.url));
+      return `
+        <figure class="image-card">
+          <button type="button" class="image-remove-btn" title="Remove image" aria-label="Remove image">×</button>
+          <button type="button" class="image-thumb-btn" title="Open slideshow">
+            <img
+              src="${src}"
+              data-raw-url="${rawUrl}"
+              alt="${alt}"
+              loading="lazy"
+              onerror="this.closest('figure')?.classList.add('image-load-failed')"
+            >
+          </button>
+          ${caption}
+          ${source}
+        </figure>
+      `;
+    }
+
+    function syncSlideshowAfterRemove(row, url) {
+      if (!slideshowOpen || slideshowRowLabel !== row) return;
+      const removedIndex = slideshowImages.findIndex(image => image.url === url);
+      if (removedIndex === -1) return;
+      slideshowImages.splice(removedIndex, 1);
+      if (!slideshowImages.length) {
+        closeSlideshow();
+        return;
+      }
+      if (removedIndex < slideshowIndex) {
+        slideshowIndex -= 1;
+      } else if (removedIndex === slideshowIndex) {
+        slideshowIndex = Math.min(slideshowIndex, slideshowImages.length - 1);
+      }
+      updateSlideshowSlide();
+    }
+
+    async function removeImage(row, url, card) {
+      const removeBtn = card?.querySelector('.image-remove-btn');
+      if (removeBtn) removeBtn.disabled = true;
+
+      try {
+        const response = await fetch(
+          `/api/images/${DATE_ISO}/${encodeURIComponent(row)}?url=${encodeURIComponent(url)}`,
+          { method: 'DELETE' }
+        );
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+
+        card?.remove();
+        const grid = document.querySelector(`[data-image-grid="${row}"]`);
+        const remaining = grid
+          ? grid.querySelectorAll('.image-card:not(.image-load-failed)').length
+          : (payload.images || []).length;
+        updateImageStatus(row, remaining);
+        syncSlideshowAfterRemove(row, url);
+      } catch (error) {
+        if (removeBtn) removeBtn.disabled = false;
+        const status = document.querySelector(`[data-image-status="${row}"]`);
+        if (status) {
+          status.textContent = `Could not remove image: ${error.message}`;
+          status.classList.add('image-error');
+        }
+      }
+    }
+
+    function collectRowImages(row) {
+      const grid = document.querySelector(`[data-image-grid="${row}"]`);
+      if (!grid) return [];
+      return [...grid.querySelectorAll('.image-card:not(.image-load-failed)')].map(card => {
+        const img = card.querySelector('img');
+        const alt = img?.getAttribute('alt') || '';
+        const sourceLink = card.querySelector('.image-source a');
+        return {
+          url: img?.getAttribute('data-raw-url') || img?.getAttribute('src') || '',
+          description: alt && alt !== 'Research image' ? alt : null,
+          source_url: sourceLink?.getAttribute('href') || null,
+        };
+      }).filter(image => image.url);
+    }
+
+    const SLIDESHOW_FADE_MS = 900;
+    const slideshowRoot = document.getElementById('slideshow-root');
+    const slideshowKen = document.getElementById('slideshow-kenburns');
+    const slideshowImage = document.getElementById('slideshow-image');
+    const slideshowCaption = document.getElementById('slideshow-caption');
+    const slideshowCounter = document.getElementById('slideshow-counter');
+    const slideshowRow = document.getElementById('slideshow-row');
+    let slideshowImages = [];
+    let slideshowIndex = 0;
+    let slideshowRowLabel = '';
+    let slideshowTransitionTimer = null;
+    let slideshowOpen = false;
+
+    function restartKenBurns() {
+      const variant = slideshowIndex % 4;
+      slideshowKen.className = `slideshow-kenburns kb-${variant}`;
+      void slideshowKen.offsetWidth;
+    }
+
+    function updateSlideshowSlide() {
+      const image = slideshowImages[slideshowIndex];
+      if (!image) return;
+      slideshowImage.onerror = () => {
+        if (slideshowImages.length <= 1) {
+          slideshowCaption.textContent = 'Could not load this image.';
+          return;
+        }
+        nextSlide();
+      };
+      slideshowImage.src = displayImageUrl(image.url);
+      slideshowImage.alt = image.description || 'Research image';
+      slideshowCaption.textContent = image.description || '';
+      slideshowCounter.textContent = `${slideshowIndex + 1} / ${slideshowImages.length}`;
+      slideshowRow.textContent = slideshowRowLabel ? `Row ${slideshowRowLabel}` : '';
+      restartKenBurns();
+    }
+
+    function clearSlideshowTransition() {
+      if (slideshowTransitionTimer) {
+        clearTimeout(slideshowTransitionTimer);
+        slideshowTransitionTimer = null;
+      }
+    }
+
+    function goToSlide(nextIndex) {
+      if (!slideshowOpen || !slideshowImages.length) return;
+      clearSlideshowTransition();
+      slideshowRoot.classList.add('is-fading');
+      slideshowTransitionTimer = window.setTimeout(() => {
+        slideshowIndex = (nextIndex + slideshowImages.length) % slideshowImages.length;
+        updateSlideshowSlide();
+        slideshowRoot.classList.remove('is-fading');
+        slideshowTransitionTimer = null;
+      }, SLIDESHOW_FADE_MS);
+    }
+
+    function nextSlide() {
+      goToSlide(slideshowIndex + 1);
+    }
+
+    function prevSlide() {
+      goToSlide(slideshowIndex - 1);
+    }
+
+    async function requestSlideshowFullscreen() {
+      try {
+        if (!document.fullscreenElement) {
+          await slideshowRoot.requestFullscreen();
+        }
+      } catch (_) {
+        /* fullscreen optional */
+      }
+    }
+
+    async function exitSlideshowFullscreen() {
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        }
+      } catch (_) {
+        /* ignore */
+      }
+    }
+
+    function openSlideshow(images, { startIndex = 0, rowLabel = '' } = {}) {
+      if (!images.length) return;
+      slideshowImages = images;
+      slideshowIndex = Math.min(startIndex, images.length - 1);
+      slideshowRowLabel = rowLabel;
+      slideshowOpen = true;
+      slideshowRoot.hidden = false;
+      document.body.classList.add('slideshow-open');
+      updateSlideshowSlide();
+      requestSlideshowFullscreen();
+    }
+
+    function closeSlideshow() {
+      slideshowOpen = false;
+      clearSlideshowTransition();
+      slideshowRoot.classList.remove('is-fading');
+      slideshowRoot.hidden = true;
+      document.body.classList.remove('slideshow-open');
+      slideshowImage.removeAttribute('src');
+      exitSlideshowFullscreen();
+    }
+
+    slideshowKen?.addEventListener('animationend', (event) => {
+      if (!slideshowOpen || event.target !== slideshowImage) return;
+      nextSlide();
+    });
+
+    document.getElementById('slideshow-close')?.addEventListener('click', closeSlideshow);
+
+    document.addEventListener('keydown', (event) => {
+      if (!slideshowOpen) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeSlideshow();
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        nextSlide();
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        prevSlide();
+      }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && slideshowOpen) {
+        closeSlideshow();
+      }
+    });
+
+    document.addEventListener('click', (event) => {
+      const removeBtn = event.target.closest('.image-remove-btn');
+      if (removeBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!canFetchImages || removeBtn.disabled) return;
+        const card = removeBtn.closest('.image-card');
+        const grid = removeBtn.closest('[data-image-grid]');
+        const row = grid?.dataset.imageGrid;
+        const url = card?.querySelector('img')?.getAttribute('data-raw-url');
+        if (!row || !url) return;
+        removeImage(row, url, card);
+        return;
+      }
+
+      const slideshowBtn = event.target.closest('.slideshow-btn');
+      if (slideshowBtn && !slideshowBtn.disabled) {
+        const row = slideshowBtn.dataset.slideshowRow;
+        openSlideshow(collectRowImages(row), { rowLabel: row });
+        return;
+      }
+
+      const thumbBtn = event.target.closest('.image-thumb-btn');
+      if (thumbBtn) {
+        const grid = thumbBtn.closest('[data-image-grid]');
+        const row = grid?.dataset.imageGrid;
+        if (!row) return;
+        const cards = [...grid.querySelectorAll('.image-card')];
+        const card = thumbBtn.closest('.image-card');
+        const startIndex = cards.indexOf(card);
+        openSlideshow(collectRowImages(row), { startIndex: Math.max(0, startIndex), rowLabel: row });
+      }
+    });
+
+    document.querySelectorAll('.fetch-images-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!canFetchImages) return;
+
+        const row = btn.dataset.row;
+        const status = document.querySelector(`[data-image-status="${row}"]`);
+        btn.disabled = true;
+        btn.textContent = 'Searching…';
+        status?.classList.remove('image-error');
+        if (status) status.textContent = 'Fetching tweet media…';
+
+        try {
+          const response = await fetch(`/api/images/${DATE_ISO}/${encodeURIComponent(row)}`, {
+            method: 'POST',
+          });
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+          }
+          renderImages(row, payload.images || []);
+        } catch (error) {
+          if (status) {
+            status.textContent = `Image search failed: ${error.message}`;
+            status.classList.add('image-error');
+          }
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Find images';
+        }
+      });
+    });
+
+    document.getElementById('scrape-today-btn')?.addEventListener('click', async () => {
+      if (!canFetchImages) return;
+
+      const btn = document.getElementById('scrape-today-btn');
+      const label = btn.textContent;
+      const confirmed = window.confirm(
+        "Fetch and research today's live timeline? This may take several minutes."
+      );
+      if (!confirmed) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Scraping…';
+      document.querySelectorAll('.fetch-images-btn, #generate-debrief-btn').forEach(el => {
+        el.disabled = true;
+      });
+
+      try {
+        const response = await fetch('/api/scrape/today', { method: 'POST' });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        window.location.href = '/';
+      } catch (error) {
+        window.alert(`Scrape failed: ${error.message}`);
+        btn.disabled = false;
+        btn.textContent = label;
+        document.querySelectorAll('.fetch-images-btn, #generate-debrief-btn').forEach(el => {
+          el.disabled = false;
+        });
+      }
+    });
+
+    document.getElementById('generate-debrief-btn')?.addEventListener('click', async () => {
+      if (!canFetchImages) return;
+
+      const btn = document.getElementById('generate-debrief-btn');
+      const confirmed = window.confirm(
+        'Generate the GPT rundown from cached research? This uses OpenAI credits and may take a few minutes.'
+      );
+      if (!confirmed) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+      document.querySelectorAll('.fetch-images-btn, #scrape-today-btn').forEach(el => {
+        el.disabled = true;
+      });
+
+      try {
+        const response = await fetch('/api/debrief/generate', { method: 'POST' });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        window.location.href = '/';
+      } catch (error) {
+        window.alert(`Debrief generation failed: ${error.message}`);
+        btn.disabled = false;
+        btn.textContent = 'Generate rundown';
+        document.querySelectorAll('.fetch-images-btn, #scrape-today-btn').forEach(el => {
+          el.disabled = false;
+        });
+      }
+    });
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const id = tab.dataset.panel;
+        tabs.forEach(t => {
+          t.classList.toggle('active', t === tab);
+          t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+        });
+        panels.forEach(p => {
+          p.classList.toggle('active', p.id === 'panel-' + id);
+        });
+      });
+    });
+
+    // If rundown unavailable, start on cache tab
+    {% if not has_debrief %}
+    document.querySelector('[data-panel="cache"]').click();
+    {% endif %}
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+.env
+.cursor/mcp.json
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+output/
+cache/
+.vercel/
+.DS_Store

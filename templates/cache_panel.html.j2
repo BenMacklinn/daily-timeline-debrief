@@ -1,0 +1,171 @@
+<div class="cache-meta">
+  <dl class="meta-grid">
+    <div><dt>Scraped</dt><dd>{{ scrape.scraped_at.strftime("%Y-%m-%d %H:%M") }}</dd></div>
+    <div><dt>Posts</dt><dd>{{ scrape.post_count }}</dd></div>
+    <div><dt>Rows</dt><dd>{{ scrape.rows | length }}</dd></div>
+    <div><dt>Search</dt><dd>{{ scrape.search_provider }}{% if scrape.skip_search %} (skipped){% endif %}</dd></div>
+    <div><dt>Cache v</dt><dd>{{ scrape.version }}</dd></div>
+  </dl>
+</div>
+
+{% for row in scrape.rows %}
+<article class="cache-row" id="cache-row-{{ row.group.label }}">
+  <header class="cache-row-head">
+    <span class="row-badge">Row {{ row.group.label }}</span>
+    {% if row.group.tag %}<span class="tag">{{ row.group.tag }}</span>{% endif %}
+    {% if row.research.topic_summary %}
+    <span class="topic-chip">{{ row.research.topic_summary }}</span>
+    {% endif %}
+    <button
+      type="button"
+      class="fetch-images-btn"
+      data-row="{{ row.group.label }}"
+      title="Fetch tweet media; Tavily only if fewer than 5 tweet images"
+    >Find images</button>
+    <button
+      type="button"
+      class="slideshow-btn"
+      data-slideshow-row="{{ row.group.label }}"
+      {% if not row.research.images %}disabled{% endif %}
+      title="Fullscreen Ken Burns slideshow"
+    >Slideshow</button>
+    <span class="row-stats">
+      {{ row.group.posts | length }} posts ·
+      {{ row.research.tweets | length }} tweets ·
+      {{ row.research.articles | length }} articles ·
+      {{ row.research.search_results | length }} search hits
+      {% if row.research.images %} · {{ row.research.images | length }} images{% endif %}
+    </span>
+  </header>
+
+  <div class="cache-block">
+    <h3>Timeline</h3>
+    <p class="mono">{{ row.research.post_summary }}</p>
+    {% if row.group.time_start %}
+    <p class="sub">{{ row.group.time_start }} → {{ row.group.time_end }}</p>
+    {% endif %}
+    {% if row.group.handles %}
+    <p class="sub">Handles: {{ row.group.handles | join(", ") }}</p>
+    {% endif %}
+  </div>
+
+  {% if row.research.topic_summary %}
+  <div class="cache-block">
+    <h3>Topic summary <span class="badge">GPT query step</span></h3>
+    <p>{{ row.research.topic_summary }}</p>
+  </div>
+  {% endif %}
+
+  {% if row.research.search_queries_used %}
+  <div class="cache-block">
+    <h3>Search queries</h3>
+    <ul class="query-list">
+      {% for q in row.research.search_queries_used %}
+      <li><code>{{ q }}</code></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if row.research.image_queries_used %}
+  <div class="cache-block">
+    <h3>Image queries</h3>
+    <ul class="query-list">
+      {% for q in row.research.image_queries_used %}
+      <li><code>{{ q }}</code></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if row.research.tweets %}
+  <div class="cache-block">
+    <h3>Tweets <span class="badge">oEmbed</span></h3>
+    {% for tweet in row.research.tweets %}
+    <div class="tweet-card">
+      <div class="tweet-head">
+        <strong>{{ tweet.slot }}</strong>
+        {% if tweet.handle %}<span>{{ tweet.handle }}</span>{% endif %}
+        {% if tweet.tweet_link %}
+        <a href="{{ tweet.tweet_link }}" target="_blank" rel="noopener">link</a>
+        {% endif %}
+      </div>
+      {% if tweet.text %}
+      <p class="tweet-text">{{ tweet.text }}</p>
+      {% else %}
+      <p class="missing">(oEmbed unavailable)</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if row.research.articles %}
+  <div class="cache-block">
+    <h3>Articles <span class="badge">trafilatura</span></h3>
+    {% for article in row.research.articles %}
+    <details class="source-card">
+      <summary>
+        <span class="source-title">{{ article.title or article.url }}</span>
+        <a href="{{ article.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗</a>
+      </summary>
+      <pre class="source-body">{{ article.text[:4000] }}{% if article.text | length > 4000 %}…{% endif %}</pre>
+    </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if row.research.search_results %}
+  <div class="cache-block">
+    <h3>Search results <span class="badge">Tavily</span></h3>
+    {% set ns = namespace(current_query='') %}
+    {% for hit in row.research.search_results %}
+      {% if hit.query != ns.current_query %}
+        {% set ns.current_query = hit.query %}
+        <p class="query-label"><code>{{ hit.query }}</code></p>
+      {% endif %}
+      <details class="source-card compact">
+        <summary>
+          <span class="source-title">{{ hit.title }}</span>
+          <a href="{{ hit.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗</a>
+        </summary>
+        <pre class="source-body">{{ hit.content[:2000] }}{% if hit.content | length > 2000 %}…{% endif %}</pre>
+      </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="cache-block image-block" data-image-block="{{ row.group.label }}">
+    <h3>Images <span class="badge">Tavily</span></h3>
+    <p class="image-status" data-image-status="{{ row.group.label }}">
+      {% if row.research.images %}
+      {{ row.research.images | length }} saved image{{ "s" if row.research.images | length != 1 else "" }} (max 15).
+      {% else %}
+      Click “Find images” to pull tweet media first; Tavily runs only if fewer than 5 tweet images. Use × to drop bad hits.
+      {% endif %}
+    </p>
+    <div class="image-grid" data-image-grid="{{ row.group.label }}">
+      {% for image in row.research.images %}
+      <figure class="image-card">
+        <button type="button" class="image-remove-btn" title="Remove image" aria-label="Remove image">×</button>
+        <button type="button" class="image-thumb-btn" title="Open slideshow">
+          <img
+            src="{{ image.url | display_image_url }}"
+            data-raw-url="{{ image.url }}"
+            alt="{{ image.description or 'Research image' }}"
+            loading="lazy"
+            onerror="this.closest('figure')?.classList.add('image-load-failed')"
+          >
+        </button>
+        {% if image.description %}
+        <figcaption>{{ image.description }}</figcaption>
+        {% endif %}
+        {% if image.source_url %}
+        <p class="image-source"><a href="{{ image.source_url }}" target="_blank" rel="noopener">source</a></p>
+        {% endif %}
+      </figure>
+      {% endfor %}
+    </div>
+  </div>
+</article>
+{% endfor %}
