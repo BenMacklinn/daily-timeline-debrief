@@ -67,13 +67,18 @@ def scrape_live_day(
 ) -> ScrapeDayResult:
     """Fetch today's live timeline, research each row, save cache + preview."""
     folder_date = default_date_pacific()
-    print("Fetching live timeline sheet...")
-    timeline = fetch_timeline()
+    print(f"Fetching timeline sheet for {folder_date}...")
+    timeline = fetch_timeline(date=folder_date)
     sheet_date = resolve_sheet_date(timeline, fallback=folder_date)
     date_iso = parse_date_to_iso(sheet_date)
     groups = group_posts_by_row(timeline.posts)
     if not groups:
-        raise ValueError("No sorted story rows found on today's timeline.")
+        raise ValueError(
+            f"No sorted story rows for {sheet_date}. "
+            f"The dated sheet may not be published yet — "
+            f"try again after rows are assigned on timeline.tbpn.com. "
+            f"(API: https://timeline.tbpn.com/api/get-posts?date={sheet_date})"
+        )
 
     print(f"Found {len(groups)} story rows ({timeline.count} total posts).\n")
     bundles = scrape_rows(
