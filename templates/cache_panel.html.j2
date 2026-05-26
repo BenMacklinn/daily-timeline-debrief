@@ -118,7 +118,7 @@
       <div class="cache-fold-body image-block" data-image-block="{{ row.group.label }}">
         <p class="image-status" data-image-status="{{ row.group.label }}">
           {% if row.research.images %}
-          {{ row.research.images | length }} saved image{{ "s" if row.research.images | length != 1 else "" }} (max 15).
+          {{ row.research.images | length }} saved image{{ "s" if row.research.images | length != 1 else "" }} (max 15). Drag ⠿ to reorder slideshow.
           {% else %}
           Click “Find images” to pull tweet media first; Tavily runs only if fewer than 5 tweet images. Use × to drop bad hits.
           {% endif %}
@@ -126,6 +126,7 @@
         <div class="image-grid" data-image-grid="{{ row.group.label }}">
           {% for image in row.research.images %}
           <figure class="image-card">
+            <button type="button" class="image-drag-handle" draggable="true" title="Drag to reorder slideshow" aria-label="Drag to reorder">⠿</button>
             <button type="button" class="image-remove-btn" title="Remove image" aria-label="Remove image">×</button>
             <button type="button" class="image-thumb-btn" title="Open slideshow">
               <img

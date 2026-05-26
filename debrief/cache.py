@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from debrief.image_urls import canonical_image_url
 from debrief.models import ImageResult, ResearchBundle, RowGroup, ScrapeCache, TimelineResponse
 
 CACHE_VERSION = 3
@@ -128,23 +129,23 @@ def update_row_images(
     return scrape
 
 
-def remove_row_image(
+def reorder_row_images(
     cache_base: Path,
     date_iso: str,
     row_label: str,
-    image_url: str,
-) -> ScrapeCache:
+    image_urls: list[str],
+) -> list[ImageResult]:
     scrape = load_scrape(cache_base, date_iso)
     updated = False
     for row in scrape.rows:
         if row.group.label != row_label:
             continue
-        before = len(row.research.images)
-        row.research.images = [
-            image for image in row.research.images if image.url != image_url
-        ]
-        if len(row.research.images) == before:
-            raise KeyError(f"Image not found in row {row_label!r}")
+        existing = {image.url: image for image in row.research.images}
+        if len(image_urls) != len(existing):
+            raise ValueError("Image order must include every saved image once.")
+        if set(image_urls) != set(existing.keys()):
+            raise ValueError("Image order contains unknown or duplicate URLs.")
+        row.research.images = [existing[url] for url in image_urls]
         updated = True
         break
     if not updated:
@@ -155,7 +156,8 @@ def remove_row_image(
         json.dumps(scrape.model_dump(mode="json"), indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    return scrape
+    row = next(entry for entry in scrape.rows if entry.group.label == row_label)
+    return row.research.images
 
 
 def remove_row_image(
@@ -169,9 +171,12 @@ def remove_row_image(
     for row in scrape.rows:
         if row.group.label != row_label:
             continue
+        target = canonical_image_url(image_url)
         before = len(row.research.images)
         row.research.images = [
-            image for image in row.research.images if image.url != image_url
+            image
+            for image in row.research.images
+            if canonical_image_url(image.url) != target
         ]
         if len(row.research.images) == before:
             raise KeyError(f"Image not found in row {row_label!r}")

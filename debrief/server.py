@@ -10,14 +10,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from debrief.cache import load_scrape, remove_row_image, scrape_exists, update_row_images
-from debrief.image_urls import fetch_image_bytes, needs_image_proxy
+from debrief.cache import load_scrape, remove_row_image, reorder_row_images, scrape_exists, update_row_images
+from debrief.image_urls import canonical_image_url, fetch_image_bytes, needs_image_proxy
 from debrief.models import ImageResult
 from debrief.research import fetch_topic_images
 from debrief.scrape_day import fetch_scrape_preview, scrape_live_day
 from debrief.generate_day import generate_debrief_from_cache
 
 _IMAGE_ROUTE = re.compile(r"^/api/images/([^/]+)/([^/]+)/?$")
+_IMAGE_ORDER_ROUTE = re.compile(r"^/api/images/([^/]+)/([^/]+)/order/?$")
 _IMAGE_PROXY_ROUTE = "/api/image-proxy"
 _SCRAPE_TODAY_ROUTE = "/api/scrape/today"
 _SCRAPE_PREVIEW_ROUTE = "/api/scrape/preview"
@@ -140,6 +141,11 @@ def create_http_handler(
                 self._json_response(200, payload)
                 return
 
+            order_match = _IMAGE_ORDER_ROUTE.match(path)
+            if order_match:
+                self._handle_image_order(app, order_match)
+                return
+
             match = _IMAGE_ROUTE.match(path)
             if not match:
                 self._json_response(404, {"error": "Not found"})
@@ -157,6 +163,66 @@ def create_http_handler(
                 images = app.fetch_and_store_images(row_label)
             except KeyError as exc:
                 self._json_response(404, {"error": str(exc)})
+                return
+            except Exception as exc:
+                self._json_response(500, {"error": str(exc)})
+                return
+
+            self._json_response(
+                200,
+                {
+                    "row": row_label,
+                    "images": [image.model_dump(mode="json") for image in images],
+                },
+            )
+
+        def do_PUT(self) -> None:
+            parsed = urlparse(self.path)
+            path = _normalize_path(parsed.path)
+            app = self._app()
+
+            match = _IMAGE_ORDER_ROUTE.match(path)
+            if not match:
+                self._json_response(404, {"error": "Not found"})
+                return
+
+            self._handle_image_order(app, match)
+
+        def _handle_image_order(
+            self,
+            app: DebriefServer,
+            match: re.Match[str],
+        ) -> None:
+            date_iso, row_label = match.groups()
+            if date_iso != app.date_iso:
+                self._json_response(
+                    404,
+                    {
+                        "error": f"Served date is {app.date_iso}, not {date_iso}. Reload the page.",
+                    },
+                )
+                return
+
+            try:
+                body = self._read_json_body()
+            except (json.JSONDecodeError, ValueError) as exc:
+                self._json_response(400, {"error": str(exc)})
+                return
+
+            urls = body.get("urls")
+            if not isinstance(urls, list) or not all(
+                isinstance(url, str) and url.startswith(("http://", "https://")) for url in urls
+            ):
+                self._json_response(400, {"error": "urls must be a list of image URLs"})
+                return
+
+            try:
+                images = app.reorder_row_images(row_label, urls)
+            except KeyError as exc:
+                self._json_response(404, {"error": str(exc)})
+                return
+            except ValueError as exc:
+                self._json_response(400, {"error": str(exc)})
                 return
             except Exception as exc:
                 self._json_response(500, {"error": str(exc)})
@@ -191,7 +257,7 @@ def create_http_handler(
                 return
 
             params = parse_qs(parsed.query)
-            image_url = unquote(params.get("url", [""])[0]).strip()
+            image_url = canonical_image_url(unquote(params.get("url", [""])[0]).strip())
             if not image_url.startswith(("http://", "https://")):
                 self._json_response(400, {"error": "Missing or invalid url"})
                 return
@@ -307,6 +373,13 @@ class DebriefServer:
         self._debrief_lock = threading.Lock()
         self._debrief_in_progress = False
 
+    def refresh_preview(self) -> None:
+        from debrief.render import write_preview
+
+        scrape = load_scrape(self.cache_dir, self.date_iso)
+        has_debrief = (self.output_dir / "debrief.html").exists()
+        write_preview(scrape, self.output_dir, has_debrief=has_debrief)
+
     def fetch_and_store_images(self, row_label: str) -> list[ImageResult]:
         scrape = load_scrape(self.cache_dir, self.date_iso)
         row = next(
@@ -327,6 +400,7 @@ class DebriefServer:
             row_tag=row.group.tag,
         )
         update_row_images(self.cache_dir, self.date_iso, row_label, images)
+        self.refresh_preview()
         return images
 
     def delete_row_image(self, row_label: str, image_url: str) -> list[ImageResult]:
@@ -342,7 +416,18 @@ class DebriefServer:
         )
         if row is None:
             raise KeyError(f"Unknown row {row_label!r}")
+        self.refresh_preview()
         return row.research.images
+
+    def reorder_row_images(self, row_label: str, image_urls: list[str]) -> list[ImageResult]:
+        images = reorder_row_images(
+            self.cache_dir,
+            self.date_iso,
+            row_label,
+            image_urls,
+        )
+        self.refresh_preview()
+        return images
 
     def fetch_scrape_preview(self) -> dict:
         return fetch_scrape_preview()

@@ -42,6 +42,20 @@ def display_image_url(url: str) -> str:
     return url
 
 
+def canonical_image_url(url: str) -> str:
+    """Normalize stored, proxied, or encoded URLs for cache lookups."""
+    raw = unquote(url).strip()
+    if not raw:
+        return raw
+    if raw.startswith("/api/image-proxy"):
+        parsed = urlparse(raw)
+        inner = parse_qs(parsed.query).get("url", [""])[0]
+        return unquote(inner).strip()
+    if raw.startswith(("http://", "https://")):
+        return raw
+    return raw
+
+
 def fetch_headers_for_url(url: str) -> dict[str, str]:
     headers = {"User-Agent": _USER_AGENT}
     host = urlparse(url).netloc.lower()

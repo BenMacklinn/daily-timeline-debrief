@@ -609,6 +609,38 @@
       cursor: pointer;
     }
 
+    .image-drag-handle {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      z-index: 2;
+      width: 22px;
+      height: 22px;
+      border: var(--component-border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #333;
+      font: inherit;
+      font-size: 0.72rem;
+      line-height: 1;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .image-drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .image-card.is-dragging {
+      opacity: 0.55;
+    }
+
+    .image-grid.is-dragging {
+      cursor: grabbing;
+    }
+
     .image-remove-btn {
       position: absolute;
       top: 4px;
@@ -648,6 +680,8 @@
       z-index: 10000;
       background: #000;
       color: #fff;
+      --slideshow-hold: 10s;
+      --slideshow-crossfade: 1.5s;
     }
 
     .slideshow-root[hidden] {
@@ -664,8 +698,9 @@
       position: absolute;
       inset: 0;
       opacity: 0;
-      transition: opacity 1s ease-in-out;
+      transition: opacity var(--slideshow-crossfade) ease-in-out;
       z-index: 0;
+      pointer-events: none;
     }
 
     .slideshow-layer.is-visible {
@@ -681,19 +716,19 @@
     }
 
     .slideshow-layer.kb-0 img {
-      animation: kenburns-0 8s ease-in-out forwards;
+      animation: kenburns-0 var(--slideshow-hold) linear forwards;
     }
 
     .slideshow-layer.kb-1 img {
-      animation: kenburns-1 8s ease-in-out forwards;
+      animation: kenburns-1 var(--slideshow-hold) linear forwards;
     }
 
     .slideshow-layer.kb-2 img {
-      animation: kenburns-2 8s ease-in-out forwards;
+      animation: kenburns-2 var(--slideshow-hold) linear forwards;
     }
 
     .slideshow-layer.kb-3 img {
-      animation: kenburns-3 8s ease-in-out forwards;
+      animation: kenburns-3 var(--slideshow-hold) linear forwards;
     }
 
     @keyframes kenburns-0 {
@@ -719,49 +754,15 @@
     .slideshow-ui {
       position: absolute;
       inset: 0;
+      z-index: 2;
       pointer-events: none;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 1.25rem 1.5rem;
-    }
-
-    .slideshow-top,
-    .slideshow-bottom {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
-      pointer-events: auto;
-    }
-
-    .slideshow-meta {
-      max-width: min(70vw, 900px);
-    }
-
-    .slideshow-row {
-      font-size: 0.75rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      opacity: 0.85;
-      margin-bottom: 0.35rem;
-    }
-
-    .slideshow-caption {
-      margin: 0;
-      font-size: 0.95rem;
-      line-height: 1.45;
-      text-shadow: 0 1px 8px rgba(0,0,0,0.8);
-    }
-
-    .slideshow-counter {
-      font-size: 0.85rem;
-      font-weight: 600;
-      opacity: 0.9;
-      white-space: nowrap;
     }
 
     .slideshow-close {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.5rem;
+      pointer-events: auto;
       border: 1px solid rgba(255,255,255,0.35);
       background: rgba(0,0,0,0.35);
       color: #fff;
@@ -775,12 +776,6 @@
 
     .slideshow-close:hover {
       background: rgba(255,255,255,0.12);
-    }
-
-    .slideshow-hint {
-      margin: 0;
-      font-size: 0.72rem;
-      opacity: 0.75;
     }
 
     .cache-block {
@@ -1054,17 +1049,7 @@
       </div>
     </div>
     <div class="slideshow-ui">
-      <div class="slideshow-top">
-        <div class="slideshow-meta">
-          <div class="slideshow-row" id="slideshow-row"></div>
-          <p class="slideshow-caption" id="slideshow-caption"></p>
-        </div>
-        <button type="button" class="slideshow-close" id="slideshow-close">Close (Esc)</button>
-      </div>
-      <div class="slideshow-bottom">
-        <p class="slideshow-hint">← → navigate · auto-advance after pan/zoom</p>
-        <span class="slideshow-counter" id="slideshow-counter"></span>
-      </div>
+      <button type="button" class="slideshow-close" id="slideshow-close">Close (Esc)</button>
     </div>
   </div>
 
@@ -1116,18 +1101,124 @@
         : url;
     }
 
+    function imageStatusText(count) {
+      if (count <= 0) {
+        return 'Click “Find images” to pull tweet media first; Tavily runs only if fewer than 5 tweet images. Use × to drop bad hits.';
+      }
+      return `${count} image${count === 1 ? '' : 's'} saved (max 15). Drag ⠿ to reorder slideshow.`;
+    }
+
     function updateImageStatus(row, count) {
       const status = document.querySelector(`[data-image-status="${row}"]`);
       const slideshowBtn = document.querySelector(`[data-slideshow-row="${row}"]`);
       if (status) {
         status.classList.remove('image-error');
-        if (count > 0) {
-          status.textContent = `${count} image${count === 1 ? '' : 's'} saved (max 15).`;
-        } else {
-          status.textContent = 'Click “Find images” to pull tweet media first; Tavily runs only if fewer than 5 tweet images. Use × to drop bad hits.';
-        }
+        status.textContent = imageStatusText(count);
       }
       if (slideshowBtn) slideshowBtn.disabled = count === 0;
+    }
+
+    function orderedImageUrls(grid) {
+      return [...grid.querySelectorAll('.image-card:not(.image-load-failed) img[data-raw-url]')]
+        .map(img => img.getAttribute('data-raw-url'))
+        .filter(Boolean);
+    }
+
+    async function parseApiResponse(response) {
+      const contentType = response.headers.get('Content-Type') || '';
+      if (contentType.includes('application/json')) {
+        return response.json();
+      }
+      const text = await response.text();
+      if (text.trimStart().startsWith('<!DOCTYPE') || text.trimStart().startsWith('<html')) {
+        throw new Error(
+          'Server returned HTML instead of JSON. Restart the local server (Ctrl+C, then re-run --serve) or redeploy if you are on Vercel.'
+        );
+      }
+      throw new Error(text.slice(0, 200) || `HTTP ${response.status}`);
+    }
+
+    async function persistImageOrder(row, grid) {
+      const urls = orderedImageUrls(grid);
+      const response = await fetch(
+        `/api/images/${DATE_ISO}/${encodeURIComponent(row)}/order`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls }),
+        }
+      );
+      const payload = await parseApiResponse(response);
+      if (!response.ok) {
+        throw new Error(payload.error || `HTTP ${response.status}`);
+      }
+      return payload.images || [];
+    }
+
+    function syncSlideshowAfterReorder(row) {
+      if (!slideshowOpen || slideshowRowLabel !== row) return;
+      slideshowImages = collectRowImages(row);
+      slideshowIndex = Math.min(slideshowIndex, Math.max(slideshowImages.length - 1, 0));
+      updateSlideshowSlide();
+    }
+
+    function initImageGridReorder(grid) {
+      if (!grid || !canFetchImages || grid.dataset.reorderInit === '1') return;
+      grid.dataset.reorderInit = '1';
+
+      const row = grid.dataset.imageGrid;
+      let dragCard = null;
+      let saving = false;
+
+      grid.querySelectorAll('.image-drag-handle').forEach(handle => {
+        handle.addEventListener('dragstart', (event) => {
+          dragCard = handle.closest('.image-card');
+          if (!dragCard) return;
+          dragCard.classList.add('is-dragging');
+          grid.classList.add('is-dragging');
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', row);
+        });
+
+        handle.addEventListener('dragend', () => {
+          dragCard?.classList.remove('is-dragging');
+          grid.classList.remove('is-dragging');
+          dragCard = null;
+        });
+      });
+
+      grid.addEventListener('dragover', (event) => {
+        if (!dragCard) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        const target = event.target.closest('.image-card');
+        if (!target || target === dragCard || target.classList.contains('image-load-failed')) {
+          return;
+        }
+        const rect = target.getBoundingClientRect();
+        const after = event.clientX > rect.left + rect.width / 2;
+        if (after) target.after(dragCard);
+        else target.before(dragCard);
+      });
+
+      grid.addEventListener('drop', async (event) => {
+        event.preventDefault();
+        if (!dragCard || saving) return;
+
+        const status = document.querySelector(`[data-image-status="${row}"]`);
+        saving = true;
+        try {
+          await persistImageOrder(row, grid);
+          syncSlideshowAfterReorder(row);
+        } catch (error) {
+          if (status) {
+            status.textContent = `Could not save image order: ${error.message}`;
+            status.classList.add('image-error');
+          }
+        } finally {
+          saving = false;
+        }
+      });
     }
 
     function renderImages(row, images) {
@@ -1145,10 +1236,12 @@
       }
 
       status.classList.remove('image-error');
-      status.textContent = `${images.length} image${images.length === 1 ? '' : 's'} saved (max 15).`;
+      status.textContent = imageStatusText(images.length);
       if (slideshowBtn) slideshowBtn.disabled = false;
 
       grid.innerHTML = images.map(image => buildImageCardHTML(image)).join('');
+      delete grid.dataset.reorderInit;
+      initImageGridReorder(grid);
     }
 
     function buildImageCardHTML(image) {
@@ -1163,6 +1256,7 @@
       const src = escapeHtml(displayImageUrl(image.url));
       return `
         <figure class="image-card">
+          <button type="button" class="image-drag-handle" draggable="true" title="Drag to reorder slideshow" aria-label="Drag to reorder">⠿</button>
           <button type="button" class="image-remove-btn" title="Remove image" aria-label="Remove image">×</button>
           <button type="button" class="image-thumb-btn" title="Open slideshow">
             <img
@@ -1205,9 +1299,20 @@
           `/api/images/${DATE_ISO}/${encodeURIComponent(row)}?url=${encodeURIComponent(url)}`,
           { method: 'DELETE' }
         );
-        const payload = await response.json();
+        const payload = await parseApiResponse(response);
         if (!response.ok) {
-          throw new Error(payload.error || `HTTP ${response.status}`);
+          const message = payload.error || `HTTP ${response.status}`;
+          if (response.status === 404 && /not found/i.test(message)) {
+            card?.remove();
+            const grid = document.querySelector(`[data-image-grid="${row}"]`);
+            const remaining = grid
+              ? grid.querySelectorAll('.image-card:not(.image-load-failed)').length
+              : 0;
+            updateImageStatus(row, remaining);
+            syncSlideshowAfterRemove(row, url);
+            return;
+          }
+          throw new Error(message);
         }
 
         card?.remove();
@@ -1225,6 +1330,22 @@
           status.classList.add('image-error');
         }
       }
+    }
+
+    function imageUrlFromCard(card) {
+      const img = card?.querySelector('img');
+      if (!img) return '';
+      const raw = img.getAttribute('data-raw-url');
+      if (raw) return raw;
+      const src = img.getAttribute('src') || '';
+      if (src.includes('/api/image-proxy?')) {
+        try {
+          return new URL(src, window.location.origin).searchParams.get('url') || '';
+        } catch (_) {
+          return '';
+        }
+      }
+      return src.startsWith('http') ? src : '';
     }
 
     function collectRowImages(row) {
@@ -1248,14 +1369,14 @@
     const slideshowLayerB = document.getElementById('slideshow-layer-b');
     const slideshowImageA = document.getElementById('slideshow-image-a');
     const slideshowImageB = document.getElementById('slideshow-image-b');
-    const slideshowCaption = document.getElementById('slideshow-caption');
-    const slideshowCounter = document.getElementById('slideshow-counter');
-    const slideshowRow = document.getElementById('slideshow-row');
+    const SLIDESHOW_HOLD_MS = 10000;
+    const SLIDESHOW_CROSSFADE_MS = 1500;
     let slideshowImages = [];
     let slideshowIndex = 0;
     let slideshowRowLabel = '';
     let slideshowActiveLayer = 'a';
     let slideshowOpen = false;
+    let slideshowAdvanceTimer = null;
 
     function getSlideshowLayers() {
       if (slideshowActiveLayer === 'a') {
@@ -1280,18 +1401,9 @@
       void layer.offsetWidth;
     }
 
-    function updateSlideshowMeta(image) {
-      slideshowCaption.textContent = image?.description || '';
-      slideshowCounter.textContent = `${slideshowIndex + 1} / ${slideshowImages.length}`;
-      slideshowRow.textContent = slideshowRowLabel ? `Row ${slideshowRowLabel}` : '';
-    }
-
     function bindSlideshowImageError(img) {
       img.onerror = () => {
-        if (slideshowImages.length <= 1) {
-          slideshowCaption.textContent = 'Could not load this image.';
-          return;
-        }
+        if (slideshowImages.length <= 1) return;
         nextSlide();
       };
     }
@@ -1302,17 +1414,52 @@
       img.alt = image.description || 'Research image';
     }
 
+    function clearSlideshowAdvance() {
+      if (slideshowAdvanceTimer) {
+        clearTimeout(slideshowAdvanceTimer);
+        slideshowAdvanceTimer = null;
+      }
+    }
+
+    function scheduleSlideshowAdvance() {
+      clearSlideshowAdvance();
+      if (!slideshowOpen || slideshowImages.length <= 1) return;
+      const delay = Math.max(SLIDESHOW_HOLD_MS - SLIDESHOW_CROSSFADE_MS, 0);
+      slideshowAdvanceTimer = setTimeout(() => nextSlide(), delay);
+    }
+
+    function crossfadeToSlide(nextIdx) {
+      const { activeLayer, inactiveLayer, inactiveImage } = getSlideshowLayers();
+      const image = slideshowImages[nextIdx];
+      if (!image) return;
+
+      inactiveLayer.classList.remove('is-visible');
+      loadImageInto(inactiveImage, image);
+      setLayerKenBurns(inactiveLayer, nextIdx % 4);
+      void inactiveLayer.offsetWidth;
+
+      requestAnimationFrame(() => {
+        inactiveLayer.classList.add('is-visible');
+        activeLayer.classList.remove('is-visible');
+      });
+
+      slideshowIndex = nextIdx;
+      slideshowActiveLayer = slideshowActiveLayer === 'a' ? 'b' : 'a';
+      scheduleSlideshowAdvance();
+    }
+
     function updateSlideshowSlide() {
       const image = slideshowImages[slideshowIndex];
       if (!image) return;
 
+      clearSlideshowAdvance();
       slideshowActiveLayer = 'a';
       slideshowLayerA.classList.add('is-visible');
       slideshowLayerB.classList.remove('is-visible');
 
       loadImageInto(slideshowImageA, image);
       setLayerKenBurns(slideshowLayerA, slideshowIndex % 4);
-      updateSlideshowMeta(image);
+      scheduleSlideshowAdvance();
     }
 
     function goToSlide(nextIndex) {
@@ -1321,17 +1468,8 @@
       const nextIdx = (nextIndex + slideshowImages.length) % slideshowImages.length;
       if (nextIdx === slideshowIndex) return;
 
-      const { activeLayer, inactiveLayer, inactiveImage } = getSlideshowLayers();
-      const image = slideshowImages[nextIdx];
-
-      loadImageInto(inactiveImage, image);
-      setLayerKenBurns(inactiveLayer, nextIdx % 4);
-      inactiveLayer.classList.add('is-visible');
-      activeLayer.classList.remove('is-visible');
-
-      slideshowIndex = nextIdx;
-      slideshowActiveLayer = slideshowActiveLayer === 'a' ? 'b' : 'a';
-      updateSlideshowMeta(image);
+      clearSlideshowAdvance();
+      crossfadeToSlide(nextIdx);
     }
 
     function nextSlide() {
@@ -1376,6 +1514,7 @@
 
     function closeSlideshow() {
       slideshowOpen = false;
+      clearSlideshowAdvance();
       slideshowRoot.hidden = true;
       document.body.classList.remove('slideshow-open');
       slideshowImageA.removeAttribute('src');
@@ -1383,15 +1522,9 @@
       slideshowLayerA.classList.add('is-visible');
       slideshowLayerB.classList.remove('is-visible');
       slideshowActiveLayer = 'a';
+      slideshowRowLabel = '';
       exitSlideshowFullscreen();
     }
-
-    slideshowStage?.addEventListener('animationend', (event) => {
-      if (!slideshowOpen || event.target.tagName !== 'IMG') return;
-      const { activeImage } = getSlideshowLayers();
-      if (event.target !== activeImage) return;
-      nextSlide();
-    });
 
     document.getElementById('slideshow-close')?.addEventListener('click', closeSlideshow);
 
@@ -1424,7 +1557,7 @@
         const card = removeBtn.closest('.image-card');
         const grid = removeBtn.closest('[data-image-grid]');
         const row = grid?.dataset.imageGrid;
-        const url = card?.querySelector('img')?.getAttribute('data-raw-url');
+        const url = imageUrlFromCard(card);
         if (!row || !url) return;
         removeImage(row, url, card);
         return;
@@ -1530,6 +1663,8 @@
     {% if not has_debrief %}
     document.querySelector('[data-panel="cache"]').click();
     {% endif %}
+
+    document.querySelectorAll('[data-image-grid]').forEach(initImageGridReorder);
   </script>
   {% include "scrape_picker.html.j2" %}
 </body>
