@@ -27,7 +27,7 @@
           type="button"
           class="fetch-images-btn"
           data-row="{{ row.group.label }}"
-          title="Fetch tweet media; Tavily only if fewer than 5 tweet images"
+          title="Fetch tweet media, then run all Tavily photo queries"
           {% if not row.research.researched %}disabled data-perma-disabled title="Run full research on this row first"{% endif %}
         >Find images</button>
         <button
@@ -110,6 +110,22 @@
     </details>
     {% endif %}
 
+    {% if row.research.image_queries_used %}
+    <details class="cache-fold">
+      <summary class="cache-fold-summary">
+        <span class="cache-fold-title">Photo search queries</span>
+        <span class="cache-fold-meta">{{ row.research.image_queries_used | length }}</span>
+      </summary>
+      <div class="cache-fold-body">
+        <ul class="query-list">
+          {% for query in row.research.image_queries_used %}
+          <li><code>{{ query }}</code></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </details>
+    {% endif %}
+
     <details class="cache-fold image-fold"{% if row.research.images %} open{% endif %}>
       <summary class="cache-fold-summary">
         <span class="cache-fold-title">Images</span>
@@ -120,7 +136,7 @@
           {% if row.research.images %}
           {{ row.research.images | length }} saved image{{ "s" if row.research.images | length != 1 else "" }} (max 15). Drag ⠿ to reorder slideshow.
           {% else %}
-          Click “Find images” to pull tweet media first; Tavily runs only if fewer than 5 tweet images. Use × to drop bad hits.
+          Click “Find images” to pull tweet media, then run all Tavily photo queries. Use × to drop bad hits.
           {% endif %}
         </p>
         <div class="image-grid" data-image-grid="{{ row.group.label }}">

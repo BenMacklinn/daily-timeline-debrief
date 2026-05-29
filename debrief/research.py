@@ -16,9 +16,6 @@ from debrief.tweets import extract_tweets_from_row, fetch_tweet_embedded_media, 
 MAX_ARTICLE_FETCHES = 3
 MAX_SEARCH_QUERIES = 3
 MAX_IMAGE_SEARCH_QUERIES = 3
-TAVILY_QUERIES_WHEN_NO_TWEET_MEDIA = MAX_IMAGE_SEARCH_QUERIES
-TAVILY_QUERIES_SUPPLEMENT = 1
-MIN_TWEET_IMAGES_TO_SKIP_TAVILY = 5
 MAX_TOPIC_IMAGES = 15
 MAX_TWEET_MEDIA_WORKERS = 6
 ARTICLE_TEXT_LIMIT = 4000
@@ -389,13 +386,9 @@ def _prepare_tavily_image_queries(
     image_queries: list[str] | None,
     search_queries: list[str] | None,
     topic_summary: str | None,
-    tweet_image_count: int,
     key_entities: list[str] | None = None,
 ) -> tuple[list[str], str, int] | None:
-    """Return (queries, search_depth, max_results) or None to skip Tavily entirely."""
-    if tweet_image_count >= MIN_TWEET_IMAGES_TO_SKIP_TAVILY:
-        return None
-
+    """Return (queries, search_depth, max_results) for Tavily image search."""
     queries = [q.strip() for q in (image_queries or []) if q.strip()]
     if not queries:
         queries = build_fallback_image_queries(
@@ -403,19 +396,10 @@ def _prepare_tavily_image_queries(
             search_queries=search_queries or [],
         )
 
-    if tweet_image_count > 0:
-        query_cap = TAVILY_QUERIES_SUPPLEMENT
-        search_depth = "basic"
-        max_results = 8
-    else:
-        query_cap = TAVILY_QUERIES_WHEN_NO_TWEET_MEDIA
-        search_depth = "advanced"
-        max_results = 10
-
     queries = _event_first_image_queries(
         row_tag=row_tag,
         image_queries=queries,
-        max_queries=query_cap,
+        max_queries=MAX_IMAGE_SEARCH_QUERIES,
     )
     queries = _filter_image_queries(
         queries,
@@ -428,7 +412,7 @@ def _prepare_tavily_image_queries(
     if not queries:
         return None
 
-    return queries[:query_cap], search_depth, max_results
+    return queries[:MAX_IMAGE_SEARCH_QUERIES], "advanced", 10
 
 
 def _anchor_phrases(
@@ -888,7 +872,6 @@ def fetch_topic_images(
         image_queries=image_queries,
         search_queries=search_queries,
         topic_summary=topic_summary,
-        tweet_image_count=len(ranked),
         key_entities=key_entities,
     )
 

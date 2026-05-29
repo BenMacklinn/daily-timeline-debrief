@@ -509,11 +509,8 @@ def run_server(
     port: int = 8765,
     open_browser: bool = True,
 ) -> None:
-    if not scrape_exists(cache_dir, date_iso):
-        raise FileNotFoundError(f"No cached scrape for {date_iso}")
-
     preview_path = output_dir / "preview.html"
-    if not preview_path.exists():
+    if scrape_exists(cache_dir, date_iso) and not preview_path.exists():
         from debrief.render import write_preview
 
         scrape = load_scrape(cache_dir, date_iso)

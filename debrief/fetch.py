@@ -44,8 +44,13 @@ def extract_handle(url: str | None) -> str | None:
 
 
 def fetch_timeline(*, date: str | None = None, timeout: float = 30.0) -> TimelineResponse:
-    """Fetch the live timeline sheet, or a historical sheet when date is set."""
-    url = f"{API_BASE}?date={date}" if date else API_BASE
+    """Fetch the live timeline sheet, or a historical sheet when date is set.
+
+    Today's sheet always uses the live endpoint (no date param) so row assignments
+    match timeline.tbpn.com. Historical dates use ?date=MM-DD-YYYY.
+    """
+    use_live = date is None or date == default_date_pacific()
+    url = API_BASE if use_live else f"{API_BASE}?date={date}"
     with httpx.Client(timeout=timeout, follow_redirects=True) as client:
         response = client.get(url)
         response.raise_for_status()

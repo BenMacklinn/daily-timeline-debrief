@@ -1103,7 +1103,7 @@
 
     function imageStatusText(count) {
       if (count <= 0) {
-        return 'Click “Find images” to pull tweet media first; Tavily runs only if fewer than 5 tweet images. Use × to drop bad hits.';
+        return 'Click “Find images” to pull tweet media, then run all Tavily photo queries. Use × to drop bad hits.';
       }
       return `${count} image${count === 1 ? '' : 's'} saved (max 15). Drag ⠿ to reorder slideshow.`;
     }
