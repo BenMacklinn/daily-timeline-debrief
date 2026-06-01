@@ -5,12 +5,12 @@ from pathlib import Path
 
 from debrief.cache import load_scrape, save_scrape
 from debrief.fetch import (
-    API_BASE,
     default_date_pacific,
     fetch_timeline,
     group_posts_by_row,
     parse_date_to_iso,
     resolve_sheet_date,
+    timeline_api_url,
 )
 from debrief.models import ResearchBundle, RowGroup, ScrapeCache, TimelineResponse
 from debrief.render import write_preview
@@ -33,12 +33,11 @@ def _timeline_sheet_or_error(*, folder_date: str | None = None) -> tuple[Timelin
     date_iso = parse_date_to_iso(sheet_date)
     groups = group_posts_by_row(timeline.posts)
     if not groups:
-        api_hint = API_BASE if folder_date == default_date_pacific() else f"{API_BASE}?date={folder_date}"
         raise ValueError(
             f"No sorted story rows for {sheet_date}. "
             f"The sheet may not have rows assigned yet — "
             f"try again after rows are sorted on timeline.tbpn.com. "
-            f"(API: {api_hint})"
+            f"(API: {timeline_api_url(folder_date)})"
         )
     return timeline, sheet_date, date_iso, groups
 
@@ -118,7 +117,7 @@ def scrape_live_day(
 ) -> ScrapeDayResult:
     """Fetch today's timeline, research selected rows, save cache + preview."""
     folder_date = default_date_pacific()
-    print(f"Fetching live timeline sheet for {folder_date}...")
+    print(f"Fetching timeline for {folder_date}...")
     timeline, sheet_date, date_iso, groups = _timeline_sheet_or_error(folder_date=folder_date)
 
     available = {group.label for group in groups}

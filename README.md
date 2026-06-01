@@ -17,7 +17,7 @@ Requires **Python 3.11+**.
 ## Usage
 
 ```bash
-# Live sheet (https://timeline.tbpn.com/api/get-posts)
+# Today's sheet (Pacific date in query string)
 python -m debrief
 
 # Historical sheet + cache/output for a specific day

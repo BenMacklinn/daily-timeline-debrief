@@ -31,7 +31,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--date",
         help=(
             "Optional MM-DD-YYYY for cache/output paths and historical API fetch "
-            "(default: live sheet from get-posts, dated today in Pacific)"
+            "(default: today's sheet from get-posts?date=, Pacific)"
         ),
     )
     parser.add_argument(
@@ -142,10 +142,8 @@ def load_or_scrape(
         bundles = [row.research for row in cached.rows]
         return groups, bundles, True, cached.date
 
-    if args.date and args.date != default_date_pacific():
-        print(f"Fetching timeline for {args.date}...")
-    else:
-        print("Fetching live timeline sheet...")
+    fetch_date = args.date or default_date_pacific()
+    print(f"Fetching timeline for {fetch_date}...")
     timeline = fetch_timeline(date=args.date)
     sheet_date = resolve_sheet_date(timeline, fallback=folder_date)
     date_iso = parse_date_to_iso(sheet_date)
@@ -256,10 +254,8 @@ def main(argv: list[str] | None = None) -> int:
             groups = [row.group for row in cached.rows]
             print(f"Loaded cache ({len(groups)} rows)\n")
         else:
-            if args.date and args.date != default_date_pacific():
-                print(f"Fetching timeline for {args.date}...")
-            else:
-                print("Fetching live timeline sheet...")
+            fetch_date = args.date or default_date_pacific()
+            print(f"Fetching timeline for {fetch_date}...")
             try:
                 timeline = fetch_timeline(date=args.date)
                 folder_date = resolve_sheet_date(
