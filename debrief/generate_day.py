@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from debrief.cache import load_scrape, scrape_exists
+from debrief.models import ScrapeCache
 from debrief.render import build_daily_debrief, write_outputs
 from debrief.synthesize import synthesize_row_debrief
 
@@ -35,6 +36,27 @@ def generate_debrief_from_cache(
         raise FileNotFoundError(f"No cached scrape for {date_iso}")
 
     scrape = load_scrape(cache_base, date_iso)
+    return generate_debrief_from_scrape(
+        scrape=scrape,
+        output_base=output_base,
+        model=model,
+        reasoning_effort=reasoning_effort,
+        search_fallback=search_fallback,
+    )
+
+
+def generate_debrief_from_scrape(
+    *,
+    scrape: ScrapeCache,
+    output_base: Path,
+    model: str = "gpt-5.5",
+    reasoning_effort: str = "low",
+    search_fallback: bool = False,
+) -> GenerateDebriefResult:
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is required. Set it in .env")
+
+    date_iso = scrape.date_iso
     out_dir = output_base / date_iso
     row_debriefs = []
 
@@ -55,7 +77,7 @@ def generate_debrief_from_cache(
         print(f"  ✓ {debrief.headline}")
 
     if not row_debriefs:
-        raise RuntimeError("No researched rows in cache. Run a full scrape on at least one row first.")
+        raise RuntimeError("No researched rows. Choose at least one section first.")
 
     daily = build_daily_debrief(
         date=scrape.date,

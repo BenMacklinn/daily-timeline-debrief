@@ -29,6 +29,37 @@
       padding: 2rem 2.5rem;
     }
 
+    .screen-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      padding: 0.65rem 1rem;
+      background: rgba(255, 255, 255, 0.96);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(6px);
+    }
+
+    .download-pdf-btn {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 0.45rem 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .download-pdf-btn:hover {
+      background: #333;
+    }
+
     .print-page + .print-page {
       border-top: 1px solid var(--border);
     }
@@ -131,6 +162,10 @@
         max-width: none;
       }
 
+      .screen-toolbar {
+        display: none !important;
+      }
+
       .print-page {
         max-width: none;
         margin: 0;
@@ -211,6 +246,9 @@
   </style>
 </head>
 <body>
+  <div class="screen-toolbar">
+    <a class="download-pdf-btn" href="debrief.pdf" download="{{ fast_facts_pdf_filename(debrief.date_iso) }}">Download PDF</a>
+  </div>
   {% for row in debrief.rows %}
   <section class="print-page">
     <div class="print-page-inner">
@@ -263,5 +301,11 @@
     </div>
   </section>
   {% endfor %}
+  <script>
+    const navigation = performance.getEntriesByType('navigation')[0];
+    if (window.location.protocol.startsWith('http') && navigation?.type === 'reload') {
+      window.location.replace('/');
+    }
+  </script>
 </body>
 </html>

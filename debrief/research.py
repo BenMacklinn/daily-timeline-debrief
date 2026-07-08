@@ -507,7 +507,7 @@ def _is_relevant_image(
     key_entities: list[str] | None = None,
     row_tag: str | None = None,
 ) -> bool:
-    """Loose topic match — producers curate bad hits with the Research UI remove button."""
+    """Loose topic match for optional image collection helpers."""
     blob = f"{description or ''} {url}".lower()
     if any(marker in blob for marker in _IRRELEVANT_IMAGE_MARKERS):
         return False

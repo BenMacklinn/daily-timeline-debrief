@@ -4,9 +4,8 @@ import os
 
 from dotenv import load_dotenv
 
-from debrief.cache import resolve_serve_date, scrape_exists
+from debrief.fetch import default_date_pacific, parse_date_to_iso
 from debrief.paths import cache_base, ensure_storage_dirs, output_base
-from debrief.render import write_preview
 from debrief.server import DebriefServer
 
 
@@ -21,19 +20,11 @@ def build_debrief_server(*, folder_date: str | None = None) -> DebriefServer:
 
     cache_dir = cache_base()
     out_base = output_base()
-    serve_date, date_iso = resolve_serve_date(cache_dir, folder_date=folder_date or os.getenv("DEBRIEF_DATE"))
+    serve_date = folder_date or os.getenv("DEBRIEF_DATE") or default_date_pacific()
+    date_iso = parse_date_to_iso(serve_date)
 
     output_dir = out_base / date_iso
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    if scrape_exists(cache_dir, date_iso):
-        preview_path = output_dir / "preview.html"
-        if not preview_path.exists():
-            from debrief.cache import load_scrape
-
-            scrape = load_scrape(cache_dir, date_iso)
-            has_debrief = (output_dir / "debrief.html").exists()
-            write_preview(scrape, output_dir, has_debrief=has_debrief)
 
     return DebriefServer(
         date_iso=date_iso,

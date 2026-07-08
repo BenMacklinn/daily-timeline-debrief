@@ -9,8 +9,10 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
 
 from debrief.fetch import default_date_pacific, parse_date_to_iso
+from debrief.filenames import fast_facts_pdf_filename
 from debrief.image_urls import display_image_url
 from debrief.models import DailyDebrief, ScrapeCache
+from debrief.pdf import write_pdf
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 
@@ -30,6 +32,7 @@ def get_template_env() -> Environment:
     )
     env.filters["markdown_bold"] = markdown_bold
     env.filters["display_image_url"] = display_image_url
+    env.globals["fast_facts_pdf_filename"] = fast_facts_pdf_filename
     return env
 
 
@@ -77,18 +80,16 @@ def write_outputs(
     output_dir.mkdir(parents=True, exist_ok=True)
     html_path = output_dir / "debrief.html"
     json_path = output_dir / "debrief.json"
+    pdf_path = output_dir / "debrief.pdf"
 
     html_path.write_text(render_html(debrief), encoding="utf-8")
     json_path.write_text(
         json.dumps(debrief.model_dump(mode="json"), indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+    write_pdf(debrief, pdf_path)
 
-    written_preview: Path | None = None
-    if scrape is not None:
-        written_preview = write_preview(scrape, output_dir, has_debrief=True)
-
-    return html_path, json_path, written_preview
+    return html_path, json_path, None
 
 
 def write_preview(scrape: ScrapeCache, output_dir: Path, *, has_debrief: bool) -> Path:

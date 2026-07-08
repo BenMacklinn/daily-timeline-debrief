@@ -129,7 +129,7 @@
 <div class="scrape-modal-backdrop" id="scrape-modal" hidden>
   <div class="scrape-modal" role="dialog" aria-labelledby="scrape-modal-title" aria-modal="true">
     <div class="scrape-modal-head">
-      <h2 id="scrape-modal-title">Select rows</h2>
+      <h2 id="scrape-modal-title">Select timeline sections</h2>
       <p id="scrape-modal-subtitle">Loading timeline…</p>
     </div>
     <div class="scrape-modal-toolbar" id="scrape-modal-toolbar" hidden>
@@ -142,7 +142,7 @@
     </div>
     <div class="scrape-modal-foot">
       <button type="button" class="scrape-modal-cancel" id="scrape-modal-cancel">Cancel</button>
-      <button type="button" class="scrape-modal-start" id="scrape-modal-start" disabled>Start research</button>
+      <button type="button" class="scrape-modal-start" id="scrape-modal-start" disabled>Generate rundown</button>
     </div>
   </div>
 </div>
@@ -190,20 +190,13 @@
       const serverOk = window.location.protocol.startsWith('http');
       scrapeTodayBtn.disabled = running || !serverOk;
       startBtn.disabled = running || selectedLabels().length === 0;
-      startBtn.textContent = running ? 'Researching…' : 'Start research';
+      startBtn.textContent = running ? 'Generating…' : 'Generate rundown';
       cancelBtn.disabled = running;
       body.querySelectorAll('input[type="checkbox"]').forEach(el => {
         el.disabled = running;
       });
       selectAllBtn.disabled = running;
       selectNoneBtn.disabled = running;
-      document.querySelectorAll('.fetch-images-btn, #generate-debrief-btn').forEach(el => {
-        if (running) {
-          el.disabled = true;
-        } else if (serverOk && !el.hasAttribute('data-perma-disabled')) {
-          el.disabled = false;
-        }
-      });
     }
 
     function closeModal() {
@@ -215,7 +208,7 @@
       previewRows = data.rows || [];
       loading?.remove();
       toolbar.hidden = false;
-      subtitle.textContent = `${data.row_count} rows · ${data.date}`;
+      subtitle.textContent = `${data.row_count} rows · ${data.date}. Pick the sections to include in the rundown.`;
 
       body.innerHTML = previewRows.map(row => {
         const tag = row.tag || 'untagged';
@@ -274,6 +267,7 @@
 
       setScrapeRunning(true);
       try {
+        subtitle.textContent = 'Researching selected timeline sections…';
         const response = await fetch('/api/scrape/today', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -283,9 +277,17 @@
         if (!response.ok) {
           throw new Error(payload.error || `HTTP ${response.status}`);
         }
-        window.location.href = '/';
+
+        subtitle.textContent = 'Writing the rundown…';
+        const generateResponse = await fetch('/api/debrief/generate', { method: 'POST' });
+        const generatePayload = await generateResponse.json();
+        if (!generateResponse.ok) {
+          throw new Error(generatePayload.error || `HTTP ${generateResponse.status}`);
+        }
+
+        window.location.href = '/debrief.html';
       } catch (error) {
-        window.alert(`Scrape failed: ${error.message}`);
+        window.alert(`Rundown generation failed: ${error.message}`);
         setScrapeRunning(false);
         updateSelectedCount();
       }

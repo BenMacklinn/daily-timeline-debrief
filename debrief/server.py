@@ -10,12 +10,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from debrief.cache import load_scrape, remove_row_image, reorder_row_images, scrape_exists, update_row_images
+from debrief.cache import load_scrape, remove_row_image, reorder_row_images, update_row_images
+from debrief.filenames import fast_facts_pdf_filename
 from debrief.image_urls import canonical_image_url, fetch_image_bytes, needs_image_proxy
-from debrief.models import ImageResult
+from debrief.models import DailyDebrief, ImageResult, ScrapeCache
+from debrief.pdf import write_pdf
 from debrief.research import fetch_topic_images
 from debrief.scrape_day import fetch_scrape_preview, scrape_live_day
-from debrief.generate_day import generate_debrief_from_cache
+from debrief.generate_day import generate_debrief_from_scrape
 
 _IMAGE_ROUTE = re.compile(r"^/api/images/([^/]+)/([^/]+)/?$")
 _IMAGE_ORDER_ROUTE = re.compile(r"^/api/images/([^/]+)/([^/]+)/order/?$")
@@ -54,10 +56,6 @@ def create_http_handler(
             output_dir = app.output_dir.resolve()
 
             if path in {"", "/"}:
-                preview = output_dir / "preview.html"
-                if preview.is_file():
-                    self._serve_file(preview)
-                    return
                 from debrief.render import render_empty_preview
 
                 html = render_empty_preview(date_iso=app.date_iso)
@@ -87,6 +85,12 @@ def create_http_handler(
             if not str(candidate).startswith(str(output_dir)):
                 self._json_response(403, {"error": "Forbidden"})
                 return
+            if relative == "debrief.pdf" and not candidate.is_file():
+                try:
+                    app.ensure_debrief_pdf()
+                except FileNotFoundError:
+                    self._json_response(404, {"error": "No debrief found"})
+                    return
             if candidate.is_file():
                 self._serve_file(candidate)
                 return
@@ -320,6 +324,9 @@ def create_http_handler(
             data = path.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", content_type)
+            if path.name == "debrief.pdf":
+                filename = fast_facts_pdf_filename(self._app().date_iso)
+                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
@@ -372,13 +379,22 @@ class DebriefServer:
         self._scrape_in_progress = False
         self._debrief_lock = threading.Lock()
         self._debrief_in_progress = False
+        self._latest_scrape: ScrapeCache | None = None
 
     def refresh_preview(self) -> None:
-        from debrief.render import write_preview
+        return None
 
-        scrape = load_scrape(self.cache_dir, self.date_iso)
-        has_debrief = (self.output_dir / "debrief.html").exists()
-        write_preview(scrape, self.output_dir, has_debrief=has_debrief)
+    def ensure_debrief_pdf(self) -> Path:
+        pdf_path = self.output_dir / "debrief.pdf"
+        if pdf_path.exists():
+            return pdf_path
+
+        json_path = self.output_dir / "debrief.json"
+        if not json_path.exists():
+            raise FileNotFoundError(f"No debrief found at {json_path}")
+
+        daily = DailyDebrief.model_validate(json.loads(json_path.read_text(encoding="utf-8")))
+        return write_pdf(daily, pdf_path)
 
     def fetch_and_store_images(self, row_label: str) -> list[ImageResult]:
         scrape = load_scrape(self.cache_dir, self.date_iso)
@@ -448,6 +464,7 @@ class DebriefServer:
                 search_provider=self.search_provider,
                 model=self.model,
                 reasoning_effort=self.reasoning_effort,
+                save_cache=False,
             )
         finally:
             with self._scrape_lock:
@@ -455,6 +472,7 @@ class DebriefServer:
 
         self.date_iso = result.date_iso
         self.output_dir = self.output_base / result.date_iso
+        self._latest_scrape = result.scrape
         return {
             "date": result.date,
             "date_iso": result.date_iso,
@@ -470,10 +488,11 @@ class DebriefServer:
             self._debrief_in_progress = True
 
         try:
-            result = generate_debrief_from_cache(
-                cache_base=self.cache_dir,
+            if self._latest_scrape is None:
+                raise RuntimeError("Choose sections before generating a rundown.")
+            result = generate_debrief_from_scrape(
+                scrape=self._latest_scrape,
                 output_base=self.output_base,
-                date_iso=self.date_iso,
                 model=self.model,
                 reasoning_effort=self.reasoning_effort,
                 search_fallback=self.search_fallback,
@@ -509,14 +528,6 @@ def run_server(
     port: int = 8765,
     open_browser: bool = True,
 ) -> None:
-    preview_path = output_dir / "preview.html"
-    if scrape_exists(cache_dir, date_iso) and not preview_path.exists():
-        from debrief.render import write_preview
-
-        scrape = load_scrape(cache_dir, date_iso)
-        has_debrief = (output_dir / "debrief.html").exists()
-        write_preview(scrape, output_dir, has_debrief=has_debrief)
-
     app = DebriefServer(
         date_iso=date_iso,
         output_dir=output_dir,
@@ -533,8 +544,8 @@ def run_server(
     httpd = ThreadingHTTPServer((host, port), handler)
     url = f"http://{host}:{port}/"
 
-    print(f"Serving research UI at {url} ({date_iso})")
-    print("Use Scrape today or Find images from the Research tab.")
+    print(f"Serving rundown UI at {url} ({date_iso})")
+    print("Use Choose sections to research selected rows and generate the rundown.")
     print("Press Ctrl+C to stop.")
 
     if open_browser:

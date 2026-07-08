@@ -7,7 +7,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from debrief.cache import load_scrape, resolve_serve_date, save_scrape, scrape_exists
+from debrief.cache import load_scrape, save_scrape, scrape_exists
 from debrief.fetch import (
     default_date_pacific,
     fetch_timeline,
@@ -17,6 +17,7 @@ from debrief.fetch import (
     summarize_row,
 )
 from debrief.models import DailyDebrief, ResearchBundle, RowDebrief, RowGroup
+from debrief.pdf import write_pdf
 from debrief.render import build_daily_debrief, render_html, write_outputs, write_preview
 from debrief.scrape_day import scrape_rows
 from debrief.server import run_server
@@ -187,10 +188,9 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = Path(args.output_dir) / date_iso
 
     if args.serve:
-        serve_date, date_iso = resolve_serve_date(cache_base, folder_date=args.date)
+        serve_date = args.date or default_date_pacific()
+        date_iso = parse_date_to_iso(serve_date)
         out_dir = Path(args.output_dir) / date_iso
-        if not args.date:
-            print(f"Serving latest cache: {date_iso} ({serve_date})")
         try:
             run_server(
                 date_iso=date_iso,
@@ -238,12 +238,15 @@ def main(argv: list[str] | None = None) -> int:
 
         daily = DailyDebrief.model_validate(json_mod.loads(json_path.read_text(encoding="utf-8")))
         html_path = out_dir / "debrief.html"
+        pdf_path = out_dir / "debrief.pdf"
         html_path.write_text(render_html(daily), encoding="utf-8")
+        write_pdf(daily, pdf_path)
         preview_path: Path | None = None
         if scrape_exists(cache_base, date_iso):
             cached = load_scrape(cache_base, date_iso)
             preview_path = write_preview(cached, out_dir, has_debrief=True)
         print(f"HTML: {html_path.resolve()}")
+        print(f"PDF: {pdf_path.resolve()}")
         if preview_path:
             print(f"Preview: {preview_path.resolve()}")
         return 0
@@ -308,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
         preview_path = write_preview(cached, out_dir, has_debrief=False)
         print("Scrape complete (--scrape-only).")
         print(f"  Preview: {preview_path.resolve()}")
-        print(f"  Research UI: python -m debrief --date {sheet_date} --serve")
+        print(f"  Rundown UI: python -m debrief --date {sheet_date} --serve")
         return 0
 
     if not os.getenv("OPENAI_API_KEY"):

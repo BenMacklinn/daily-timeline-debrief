@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from debrief.cache import load_scrape, save_scrape
@@ -13,7 +14,6 @@ from debrief.fetch import (
     timeline_api_url,
 )
 from debrief.models import ResearchBundle, RowGroup, ScrapeCache, TimelineResponse
-from debrief.render import write_preview
 from debrief.research import build_post_summary, research_row
 
 
@@ -22,7 +22,7 @@ class ScrapeDayResult:
     date: str
     date_iso: str
     scrape: ScrapeCache
-    preview_path: Path
+    preview_path: Path | None
     researched_rows: int
 
 
@@ -114,8 +114,9 @@ def scrape_live_day(
     search_provider: str = "tavily",
     model: str = "gpt-5.5",
     reasoning_effort: str = "low",
+    save_cache: bool = True,
 ) -> ScrapeDayResult:
-    """Fetch today's timeline, research selected rows, save cache + preview."""
+    """Fetch today's timeline and research selected rows."""
     folder_date = default_date_pacific()
     print(f"Fetching timeline for {folder_date}...")
     timeline, sheet_date, date_iso, groups = _timeline_sheet_or_error(folder_date=folder_date)
@@ -160,23 +161,34 @@ def scrape_live_day(
             bundle = stub_research_bundle(group)
         bundles.append(bundle)
 
-    cache_path = save_scrape(
-        cache_base=cache_base,
-        date=sheet_date,
-        date_iso=date_iso,
-        timeline=timeline,
-        groups=groups,
-        bundles=bundles,
-        search_provider=search_provider,
-        skip_search=skip_search,
-    )
-    print(f"\nSaved scrape cache → {cache_path.resolve()}")
-
-    scrape = load_scrape(cache_base, date_iso)
-    out_dir = output_base / date_iso
-    has_debrief = (out_dir / "debrief.html").exists()
-    preview_path = write_preview(scrape, out_dir, has_debrief=has_debrief)
-    print(f"Preview → {preview_path.resolve()}")
+    preview_path: Path | None = None
+    if save_cache:
+        cache_path = save_scrape(
+            cache_base=cache_base,
+            date=sheet_date,
+            date_iso=date_iso,
+            timeline=timeline,
+            groups=groups,
+            bundles=bundles,
+            search_provider=search_provider,
+            skip_search=skip_search,
+        )
+        print(f"\nSaved scrape cache → {cache_path.resolve()}")
+        scrape = load_scrape(cache_base, date_iso)
+    else:
+        scrape = ScrapeCache(
+            date=sheet_date,
+            date_iso=date_iso,
+            scraped_at=datetime.now(),
+            post_count=timeline.count,
+            search_provider=search_provider,
+            skip_search=skip_search,
+            timeline=timeline,
+            rows=[
+                {"group": group, "research": bundle}
+                for group, bundle in zip(groups, bundles, strict=True)
+            ],
+        )
 
     return ScrapeDayResult(
         date=sheet_date,

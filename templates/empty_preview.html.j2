@@ -100,19 +100,19 @@
   <header class="topbar">
     <h1>TBPN Preview</h1>
     <span class="date">{{ date_iso }}</span>
-    <button type="button" class="scrape-today-btn" id="scrape-today-btn">Scrape today</button>
+    <button type="button" class="scrape-today-btn" id="scrape-today-btn">Choose sections</button>
   </header>
   <main>
     <div class="card">
-      <h2>No research cached yet</h2>
+      <h2>No rundown generated yet</h2>
       <p>
-        Click <strong>Scrape today</strong> to load the timeline sheet, review each row,
-        then choose which rows get full GPT/Tavily research.
+        Click <strong>Choose sections</strong> to load the timeline sheet and pick the
+        rows to include. After selection, the app will research those rows, generate the
+        rundown, and open the finished page.
       </p>
       <p>
-        The first scrape can take several minutes. On Vercel Hobby, long scrapes may hit the
-        10-second function timeout — use a local <code>--serve</code> run for heavy days, or
-        upgrade to Pro for longer runs.
+        Generation can take several minutes. On Vercel Hobby, long runs may hit the
+        function timeout; use a local <code>--serve</code> run for heavy days.
       </p>
       <p class="status" id="status"></p>
     </div>
