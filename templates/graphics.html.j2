@@ -233,10 +233,22 @@
       border-bottom: 0;
     }
 
-    .fact-text {
+    .facts-list {
+      position: absolute;
       left: 34px;
+      top: 22px;
       width: 572px;
-      height: 42px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .fact-text {
+      position: relative;
+      left: auto;
+      width: 100%;
+      min-height: 20px;
+      max-height: 40px;
       align-items: flex-start;
       overflow: hidden;
       padding-left: 0;
@@ -259,11 +271,6 @@
       font-size: 8px;
       line-height: 1;
     }
-
-    .fact-1 { top: 78px; }
-    .fact-2 { top: 134px; }
-    .fact-3 { top: 190px; }
-    .fact-4 { top: 246px; }
 
     .fullscreen-button {
       position: absolute;
@@ -374,10 +381,13 @@
           >
             <div class="graphic-background"></div>
             <div class="fast-facts-label">Fast facts:</div>
-            <div class="facts-panel"></div>
-            {% for fact in row.hard_facts[:max_facts] %}
-            <div class="fact-text fact-{{ loop.index }}">{{ fact | graphic_text(fact_max_chars) }}</div>
-            {% endfor %}
+            <div class="facts-panel">
+              <div class="facts-list">
+                {% for fact in row.hard_facts[:max_facts] %}
+                <div class="fact-text">{{ fact | graphic_text(fact_max_chars) }}</div>
+                {% endfor %}
+              </div>
+            </div>
           </div>
           <button class="fullscreen-button" type="button">Fullscreen</button>
         </div>
