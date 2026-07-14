@@ -278,7 +278,7 @@
           throw new Error(payload.error || `HTTP ${response.status}`);
         }
 
-        window.location.href = '/debrief.html';
+        window.location.href = '/graphics.html';
       } catch (error) {
         window.alert(`Rundown generation failed: ${error.message}`);
         setScrapeRunning(false);
