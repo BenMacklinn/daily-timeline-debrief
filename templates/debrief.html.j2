@@ -42,7 +42,7 @@
       backdrop-filter: blur(6px);
     }
 
-    .download-pdf-btn {
+    .toolbar-btn {
       border: 1px solid var(--accent);
       background: var(--accent);
       color: #fff;
@@ -56,8 +56,17 @@
       display: inline-block;
     }
 
-    .download-pdf-btn:hover {
+    .toolbar-btn:hover {
       background: #333;
+    }
+
+    .toolbar-btn-graphics {
+      border-color: #15803d;
+      background: #15803d;
+    }
+
+    .toolbar-btn-graphics:hover {
+      background: #166534;
     }
 
     .print-page + .print-page {
@@ -247,7 +256,8 @@
 </head>
 <body>
   <div class="screen-toolbar">
-    <a class="download-pdf-btn" href="debrief.pdf" download="{{ fast_facts_pdf_filename(debrief.date_iso) }}">Download PDF</a>
+    <a class="toolbar-btn toolbar-btn-graphics" href="graphics.html">Create graphics</a>
+    <a class="toolbar-btn" href="debrief.pdf" download="{{ fast_facts_pdf_filename(debrief.date_iso) }}">Download PDF</a>
   </div>
   {% for row in debrief.rows %}
   <section class="print-page">

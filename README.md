@@ -54,9 +54,11 @@ Research pipeline per row:
 3. **Tavily** — search with enriched queries
 4. **GPT** — write debrief (use `--use-cache` to skip steps 1–3)
 
-Output is written to `output/YYYY-MM-DD/debrief.html`, `debrief.pdf`, and `debrief.json`.
+Output is written to `output/YYYY-MM-DD/debrief.html`, `debrief.pdf`, `debrief.json`,
+and `graphics.html`.
 
-Open the HTML in a browser, or use **Download PDF** in the rundown UI.
+Open the HTML in a browser. Use **Download PDF** for the print rundown or
+**Create graphics** to open Flowics-style 1920×1080 cards and download PNGs.
 
 ## Deploy (Vercel)
 

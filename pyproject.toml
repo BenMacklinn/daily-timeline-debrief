@@ -28,7 +28,7 @@ where = ["."]
 include = ["debrief*"]
 
 [tool.setuptools.package-data]
-debrief = ["../templates/*"]
+debrief = ["../templates/*", "assets/graphics/*"]
 
 [tool.vercel]
 entrypoint = "index:handler"

@@ -267,22 +267,15 @@
 
       setScrapeRunning(true);
       try {
-        subtitle.textContent = 'Researching selected timeline sections…';
+        subtitle.textContent = 'Researching selected timeline sections and writing the rundown…';
         const response = await fetch('/api/scrape/today', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows }),
+          body: JSON.stringify({ rows, generate: true }),
         });
         const payload = await response.json();
         if (!response.ok) {
           throw new Error(payload.error || `HTTP ${response.status}`);
-        }
-
-        subtitle.textContent = 'Writing the rundown…';
-        const generateResponse = await fetch('/api/debrief/generate', { method: 'POST' });
-        const generatePayload = await generateResponse.json();
-        if (!generateResponse.ok) {
-          throw new Error(generatePayload.error || `HTTP ${generateResponse.status}`);
         }
 
         window.location.href = '/debrief.html';

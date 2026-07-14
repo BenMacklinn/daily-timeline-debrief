@@ -116,10 +116,16 @@ def create_http_handler(
                         self._json_response(400, {"error": "rows must be a list of row labels"})
                         return
                     row_labels = [label.strip() for label in row_labels]
+                generate = body.get("generate", False)
+                if not isinstance(generate, bool):
+                    self._json_response(400, {"error": "generate must be a boolean"})
+                    return
                 try:
-                    payload = app.scrape_today(row_labels=row_labels)
+                    payload = app.scrape_today(row_labels=row_labels, generate=generate)
                 except RuntimeError as exc:
-                    self._json_response(409, {"error": str(exc)})
+                    message = str(exc)
+                    status = 409 if "already in progress" in message.lower() else 400
+                    self._json_response(status, {"error": message})
                     return
                 except ValueError as exc:
                     self._json_response(400, {"error": str(exc)})
@@ -134,7 +140,9 @@ def create_http_handler(
                 try:
                     payload = app.generate_debrief()
                 except RuntimeError as exc:
-                    self._json_response(409, {"error": str(exc)})
+                    message = str(exc)
+                    status = 409 if "already in progress" in message.lower() else 400
+                    self._json_response(status, {"error": message})
                     return
                 except FileNotFoundError as exc:
                     self._json_response(404, {"error": str(exc)})
@@ -448,13 +456,20 @@ class DebriefServer:
     def fetch_scrape_preview(self) -> dict:
         return fetch_scrape_preview()
 
-    def scrape_today(self, *, row_labels: list[str] | None = None) -> dict:
+    def scrape_today(
+        self,
+        *,
+        row_labels: list[str] | None = None,
+        generate: bool = False,
+    ) -> dict:
         with self._scrape_lock:
             if self._scrape_in_progress:
                 raise RuntimeError("A scrape is already in progress.")
             self._scrape_in_progress = True
 
         try:
+            # Persist to disk so /api/debrief/generate can recover on a fresh
+            # serverless instance (in-memory _latest_scrape alone is not enough).
             result = scrape_live_day(
                 cache_base=self.cache_dir,
                 output_base=self.output_base,
@@ -464,22 +479,27 @@ class DebriefServer:
                 search_provider=self.search_provider,
                 model=self.model,
                 reasoning_effort=self.reasoning_effort,
-                save_cache=False,
+                save_cache=True,
             )
+            self.date_iso = result.date_iso
+            self.output_dir = self.output_base / result.date_iso
+            self._latest_scrape = result.scrape
+            payload = {
+                "date": result.date,
+                "date_iso": result.date_iso,
+                "rows": len(result.scrape.rows),
+                "researched_rows": result.researched_rows,
+                "posts": result.scrape.post_count,
+            }
+            # Run GPT in the same request on Vercel so generate cannot land on
+            # a different cold instance with an empty /tmp and no scrape state.
+            if generate:
+                generated = self.generate_debrief()
+                payload["generated_rows"] = generated["rows"]
+            return payload
         finally:
             with self._scrape_lock:
                 self._scrape_in_progress = False
-
-        self.date_iso = result.date_iso
-        self.output_dir = self.output_base / result.date_iso
-        self._latest_scrape = result.scrape
-        return {
-            "date": result.date,
-            "date_iso": result.date_iso,
-            "rows": len(result.scrape.rows),
-            "researched_rows": result.researched_rows,
-            "posts": result.scrape.post_count,
-        }
 
     def generate_debrief(self) -> dict:
         with self._debrief_lock:
@@ -488,10 +508,17 @@ class DebriefServer:
             self._debrief_in_progress = True
 
         try:
-            if self._latest_scrape is None:
-                raise RuntimeError("Choose sections before generating a rundown.")
+            scrape = self._latest_scrape
+            if scrape is None:
+                from debrief.cache import scrape_exists
+
+                if scrape_exists(self.cache_dir, self.date_iso):
+                    scrape = load_scrape(self.cache_dir, self.date_iso)
+                    self._latest_scrape = scrape
+                else:
+                    raise RuntimeError("Choose sections before generating a rundown.")
             result = generate_debrief_from_scrape(
-                scrape=self._latest_scrape,
+                scrape=scrape,
                 output_base=self.output_base,
                 model=self.model,
                 reasoning_effort=self.reasoning_effort,

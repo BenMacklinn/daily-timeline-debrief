@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import os
+import threading
 
 from dotenv import load_dotenv
 
 from debrief.fetch import default_date_pacific, parse_date_to_iso
 from debrief.paths import cache_base, ensure_storage_dirs, output_base
 from debrief.server import DebriefServer
+
+_app: DebriefServer | None = None
+_app_lock = threading.Lock()
 
 
 def load_env() -> None:
@@ -38,3 +42,14 @@ def build_debrief_server(*, folder_date: str | None = None) -> DebriefServer:
         reasoning_effort=os.getenv("REASONING_EFFORT", "low"),
         search_fallback=os.getenv("SEARCH_FALLBACK", "").lower() in {"1", "true", "yes"},
     )
+
+
+def get_debrief_server() -> DebriefServer:
+    """Reuse one app per process so scrape state survives across Vercel requests."""
+    global _app
+    if _app is not None:
+        return _app
+    with _app_lock:
+        if _app is None:
+            _app = build_debrief_server()
+        return _app

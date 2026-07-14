@@ -18,7 +18,13 @@ from debrief.fetch import (
 )
 from debrief.models import DailyDebrief, ResearchBundle, RowDebrief, RowGroup
 from debrief.pdf import write_pdf
-from debrief.render import build_daily_debrief, render_html, write_outputs, write_preview
+from debrief.render import (
+    build_daily_debrief,
+    render_html,
+    write_graphics,
+    write_outputs,
+    write_preview,
+)
 from debrief.scrape_day import scrape_rows
 from debrief.server import run_server
 from debrief.synthesize import synthesize_row_debrief
@@ -241,12 +247,14 @@ def main(argv: list[str] | None = None) -> int:
         pdf_path = out_dir / "debrief.pdf"
         html_path.write_text(render_html(daily), encoding="utf-8")
         write_pdf(daily, pdf_path)
+        graphics_path = write_graphics(daily, out_dir)
         preview_path: Path | None = None
         if scrape_exists(cache_base, date_iso):
             cached = load_scrape(cache_base, date_iso)
             preview_path = write_preview(cached, out_dir, has_debrief=True)
         print(f"HTML: {html_path.resolve()}")
         print(f"PDF: {pdf_path.resolve()}")
+        print(f"Graphics: {graphics_path.resolve()}")
         if preview_path:
             print(f"Preview: {preview_path.resolve()}")
         return 0

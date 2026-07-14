@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +16,12 @@ from debrief.models import DailyDebrief, ScrapeCache
 from debrief.pdf import write_pdf
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
+GRAPHICS_ASSET_DIR = Path(__file__).resolve().parent / "assets" / "graphics"
+GRAPHICS_OUTPUT_DIRNAME = "graphics-assets"
+
+RUNDOWN_HEADLINE_MAX_CHARS = 60
+RUNDOWN_FACT_MAX_CHARS = 62
+RUNDOWN_MAX_GRAPHIC_FACTS = 4
 
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 
@@ -25,12 +32,33 @@ def markdown_bold(text: str) -> Markup:
     return Markup(_BOLD_RE.sub(r"<strong>\1</strong>", escaped))
 
 
+def graphic_text(text: str, max_chars: int) -> str:
+    """Prepare rundown copy using the same hard limits as the Flowics graphics app."""
+    cleaned = _BOLD_RE.sub(r"\1", text).strip()
+    if len(cleaned) <= max_chars:
+        return cleaned
+
+    cut = cleaned[:max_chars]
+    last_space = cut.rfind(" ")
+    if last_space > max_chars - 18:
+        return cut[:last_space].rstrip()
+    return cut.rstrip()
+
+
+def graphic_slug(text: str) -> str:
+    cleaned = _BOLD_RE.sub(r"\1", text).lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", cleaned).strip("-")[:40]
+    return slug or "graphic"
+
+
 def get_template_env() -> Environment:
     env = Environment(
         loader=FileSystemLoader(TEMPLATE_DIR),
         autoescape=select_autoescape(["html", "xml"]),
     )
     env.filters["markdown_bold"] = markdown_bold
+    env.filters["graphic_text"] = graphic_text
+    env.filters["graphic_slug"] = graphic_slug
     env.filters["display_image_url"] = display_image_url
     env.globals["fast_facts_pdf_filename"] = fast_facts_pdf_filename
     return env
@@ -71,6 +99,32 @@ def render_empty_preview(
     return template.render(date_iso=date_iso, today_date_iso=today_date_iso)
 
 
+def render_graphics(debrief: DailyDebrief) -> str:
+    env = get_template_env()
+    template = env.get_template("graphics.html.j2")
+    return template.render(
+        debrief=debrief,
+        headline_max_chars=RUNDOWN_HEADLINE_MAX_CHARS,
+        fact_max_chars=RUNDOWN_FACT_MAX_CHARS,
+        max_facts=RUNDOWN_MAX_GRAPHIC_FACTS,
+    )
+
+
+def write_graphics(debrief: DailyDebrief, output_dir: Path) -> Path:
+    """Write the Flowics-style graphics workspace and its local render assets."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    asset_output = output_dir / GRAPHICS_OUTPUT_DIRNAME
+    asset_output.mkdir(parents=True, exist_ok=True)
+
+    for source in GRAPHICS_ASSET_DIR.iterdir():
+        if source.is_file():
+            shutil.copy2(source, asset_output / source.name)
+
+    graphics_path = output_dir / "graphics.html"
+    graphics_path.write_text(render_graphics(debrief), encoding="utf-8")
+    return graphics_path
+
+
 def write_outputs(
     debrief: DailyDebrief,
     output_dir: Path,
@@ -88,6 +142,7 @@ def write_outputs(
         encoding="utf-8",
     )
     write_pdf(debrief, pdf_path)
+    write_graphics(debrief, output_dir)
 
     return html_path, json_path, None
 

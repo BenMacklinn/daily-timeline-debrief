@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TBPN Rundown Graphics — {{ debrief.date_iso }}</title>
+  <style>
+    @font-face {
+      font-family: "Record Laser Freeze";
+      src: url("graphics-assets/RecordLaserFreeze-TBPNMedium.ttf") format("truetype");
+      font-display: block;
+      font-style: normal;
+      font-weight: 700;
+    }
+
+    @font-face {
+      font-family: "Record Laser Freeze Medium";
+      src: url("graphics-assets/RecordLaserFreeze-TBPNMedium.ttf") format("truetype");
+      font-display: block;
+      font-style: normal;
+      font-weight: 400;
+    }
+
+    @font-face {
+      font-family: "Record Laser Freeze";
+      src: url("graphics-assets/RecordLaserFreeze-TBPNBoldItalic.ttf") format("truetype");
+      font-display: block;
+      font-style: italic;
+      font-weight: 700;
+    }
+
+    @font-face {
+      font-family: "Record Laser Freeze";
+      src: url("graphics-assets/RecordLaserFreeze-TBPNBlack.ttf") format("truetype");
+      font-display: block;
+      font-style: normal;
+      font-weight: 900;
+    }
+
+    :root {
+      color-scheme: light;
+      --green: #2fb081;
+      --ink: #111;
+      --muted: #555;
+      --panel: #fff;
+      --border: #ddd;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f5f5f5;
+      color: var(--ink);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, a { font: inherit; }
+
+    .page-shell {
+      width: min(1180px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 1.25rem 0 4rem;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .intro {
+      margin: 0;
+      color: #111;
+      font-size: 0.95rem;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.65rem;
+    }
+
+    .button {
+      appearance: none;
+      border: 1px solid #ccc;
+      border-radius: 0.75rem;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      display: inline-block;
+      padding: 0.7rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-decoration: none;
+      text-transform: uppercase;
+    }
+
+    .button:hover { background: #eee; }
+    .button:disabled { cursor: wait; opacity: 0.55; }
+
+    .button-primary {
+      border-color: var(--green);
+      background: linear-gradient(
+        90deg,
+        rgb(66 148 96) 0%,
+        rgb(66 148 98) 10%,
+        rgb(66 148 96) 20%,
+        rgb(67 149 99) 30%,
+        rgb(61 137 90) 40%,
+        rgb(56 128 88) 50%,
+        rgb(51 115 80) 60%,
+        rgb(47 109 75) 70%,
+        rgb(41 96 68) 80%,
+        rgb(34 82 58) 90%,
+        rgb(31 77 55) 100%
+      );
+      color: #06120e;
+    }
+
+    .button-primary:hover { background: #45c493; }
+
+    .button-dark {
+      border-color: #111;
+      background: #111;
+      color: #fff;
+    }
+
+    .button-dark:hover { background: #333; }
+
+    .cards { display: grid; gap: 1.25rem; }
+
+    .card {
+      display: grid;
+      grid-template-columns: minmax(0, 640px) minmax(220px, 1fr);
+      gap: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: var(--panel);
+      padding: 1.25rem;
+      backdrop-filter: blur(8px);
+    }
+
+    .preview-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 640px;
+      overflow: hidden;
+    }
+
+    .graphic-export {
+      position: relative;
+      width: 640px;
+      height: 360px;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+      font-feature-settings: "lnum" 1, "tnum" 1;
+      text-align: left;
+      text-transform: uppercase;
+    }
+
+    .graphic-background {
+      position: absolute;
+      inset: 0;
+      width: 640px;
+      height: 360px;
+      background: linear-gradient(135deg, #061713 0%, #0b3f31 55%, #061713 100%);
+    }
+
+    .fast-facts-label,
+    .fact-text {
+      position: absolute;
+      display: flex;
+      justify-content: flex-start;
+      color: #fff;
+      white-space: pre-line;
+    }
+
+    .fast-facts-label {
+      left: 0;
+      top: 0;
+      width: 640px;
+      height: 56px;
+      align-items: center;
+      padding-left: 32px;
+      box-sizing: border-box;
+      background-color: #00503d;
+      background-image: linear-gradient(rgba(0, 80, 61, 0.82), rgba(0, 80, 61, 0.82)), url("graphics-assets/rundown-bg.png");
+      background-position: center top;
+      background-size: 640px 360px;
+      border-bottom: 0;
+      font: normal 900 24px/18px "Record Laser Freeze", Inter, sans-serif;
+      justify-content: flex-start;
+      text-align: left;
+      text-shadow: none;
+      letter-spacing: 0.05em;
+    }
+
+    .fast-facts-label::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      background: #1a805f;
+      pointer-events: none;
+    }
+
+    .facts-panel {
+      position: absolute;
+      left: 0;
+      top: 56px;
+      width: 640px;
+      height: 304px;
+      background: linear-gradient(
+        180deg,
+        #f5f5f5 0%,
+        #f1f4f6 18%,
+        #ecf2f4 40%,
+        #ebeff3 60%,
+        #e3eaf2 88%,
+        #e4e5e6 100%
+      );
+      border-bottom: 0;
+    }
+
+    .fact-text {
+      left: 34px;
+      width: 572px;
+      height: 42px;
+      align-items: flex-start;
+      overflow: hidden;
+      padding-left: 0;
+      background: transparent;
+      color: #061713;
+      font: normal 400 17px/20px "Record Laser Freeze Medium", "Record Laser Freeze", Inter, sans-serif;
+      letter-spacing: 0;
+      text-overflow: clip;
+      text-transform: none;
+      white-space: normal;
+    }
+
+    .fact-text::before {
+      content: "■";
+      display: inline-block;
+      flex: 0 0 auto;
+      margin-top: 5px;
+      margin-right: 12px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8px;
+      line-height: 1;
+    }
+
+    .fact-1 { top: 78px; }
+    .fact-2 { top: 134px; }
+    .fact-3 { top: 190px; }
+    .fact-4 { top: 246px; }
+
+    .fullscreen-button {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 0.7rem;
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+      cursor: pointer;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .card-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+      min-width: 0;
+    }
+
+    .row-badge {
+      border: 1px solid var(--green);
+      border-radius: 999px;
+      background: var(--green);
+      color: #06120e;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.7rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .copy-label {
+      margin: 0 0 0.35rem;
+      color: #666;
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .copy-value {
+      margin: 0;
+      color: #333;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .fullscreen {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .fullscreen[hidden] { display: none; }
+
+    .fullscreen-stage {
+      width: 640px;
+      height: 360px;
+      transform-origin: center;
+    }
+
+    .fullscreen-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      z-index: 2;
+    }
+
+    @media (max-width: 980px) {
+      .page-header { align-items: flex-start; flex-direction: column; }
+      .actions { justify-content: flex-start; }
+      .card { grid-template-columns: 1fr; }
+      .preview-wrap { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="page-header">
+      <p class="intro">
+        {{ debrief.rows | length }} graphics generated directly from the {{ debrief.date_iso }} rundown.
+      </p>
+      <div class="actions">
+        <a class="button" href="debrief.html">Back to rundown</a>
+        <button class="button button-dark" id="download-all" type="button">Download all PNGs</button>
+      </div>
+    </header>
+
+    <section class="cards">
+      {% for row in debrief.rows %}
+      {% set graphic_headline = row.headline | graphic_text(headline_max_chars) %}
+      <article class="card">
+        <div class="preview-wrap">
+          <div
+            class="graphic-export"
+            data-filename="rundown-row-{{ row.row | lower }}-{{ graphic_headline | graphic_slug }}.png"
+            data-row="{{ row.row }}"
+          >
+            <div class="graphic-background"></div>
+            <div class="fast-facts-label">Fast facts:</div>
+            <div class="facts-panel"></div>
+            {% for fact in row.hard_facts[:max_facts] %}
+            <div class="fact-text fact-{{ loop.index }}">{{ fact | graphic_text(fact_max_chars) }}</div>
+            {% endfor %}
+          </div>
+          <button class="fullscreen-button" type="button">Fullscreen</button>
+        </div>
+
+        <div class="card-meta">
+          <span class="row-badge">Row {{ row.row }}</span>
+          <div>
+            <p class="copy-label">Headline</p>
+            <p class="copy-value">{{ graphic_headline }} · {{ graphic_headline | length }}/{{ headline_max_chars }}</p>
+          </div>
+          <div>
+            <p class="copy-label">Fast facts</p>
+            <p class="copy-value">{{ row.hard_facts[:max_facts] | length }} of {{ max_facts }} slots filled</p>
+          </div>
+          <button class="button button-primary download-one" type="button">Download PNG</button>
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+  </main>
+
+  <div class="fullscreen" id="fullscreen" hidden>
+    <button class="button fullscreen-close" id="fullscreen-close" type="button">Close</button>
+    <div class="fullscreen-stage" id="fullscreen-stage"></div>
+  </div>
+
+  <script src="graphics-assets/html-to-image.js"></script>
+  <script>
+    (() => {
+      const status = document.getElementById('status');
+      const downloadAll = document.getElementById('download-all');
+      const fullscreen = document.getElementById('fullscreen');
+      const fullscreenStage = document.getElementById('fullscreen-stage');
+      const fullscreenClose = document.getElementById('fullscreen-close');
+
+      function setStatus(message) {
+        if (status) {
+          status.textContent = message;
+        }
+      }
+
+      async function imageAssetsReady() {
+        await document.fonts.ready;
+        const background = new Image();
+        background.src = 'graphics-assets/rundown-bg.png';
+        if (!background.complete) {
+          await new Promise((resolve, reject) => {
+            background.addEventListener('load', resolve, { once: true });
+            background.addEventListener('error', reject, { once: true });
+          });
+        }
+      }
+
+      async function renderPng(node) {
+        await imageAssetsReady();
+        return window.htmlToImage.toPng(node, {
+          backgroundColor: '#000000',
+          cacheBust: window.location.protocol !== 'file:',
+          pixelRatio: 3,
+          width: 640,
+          height: 360,
+        });
+      }
+
+      function saveDataUrl(dataUrl, filename) {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = dataUrl;
+        link.click();
+      }
+
+      async function downloadGraphic(node, button) {
+        const original = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Rendering...';
+        try {
+          const dataUrl = await renderPng(node);
+          saveDataUrl(dataUrl, node.dataset.filename || 'rundown-graphic.png');
+          setStatus(`Downloaded graphic for row ${node.dataset.row || '?'}.`);
+        } finally {
+          button.disabled = false;
+          button.textContent = original;
+        }
+      }
+
+      document.querySelectorAll('.card').forEach((card) => {
+        const node = card.querySelector('.graphic-export');
+        const downloadButton = card.querySelector('.download-one');
+        const fullscreenButton = card.querySelector('.fullscreen-button');
+
+        downloadButton.addEventListener('click', () => {
+          downloadGraphic(node, downloadButton).catch((error) => {
+            setStatus(error instanceof Error ? error.message : 'Could not render graphic.');
+          });
+        });
+
+        fullscreenButton.addEventListener('click', () => {
+          fullscreenStage.replaceChildren(node.cloneNode(true));
+          fullscreen.hidden = false;
+          const scale = Math.min(window.innerWidth / 640, window.innerHeight / 360);
+          fullscreenStage.style.transform = `scale(${scale})`;
+          fullscreen.requestFullscreen?.().catch(() => undefined);
+        });
+      });
+
+      async function closeFullscreen() {
+        fullscreen.hidden = true;
+        fullscreenStage.replaceChildren();
+        if (document.fullscreenElement) {
+          await document.exitFullscreen().catch(() => undefined);
+        }
+      }
+
+      fullscreenClose.addEventListener('click', closeFullscreen);
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !fullscreen.hidden) {
+          closeFullscreen();
+        }
+      });
+      document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement && !fullscreen.hidden) {
+          fullscreen.hidden = true;
+          fullscreenStage.replaceChildren();
+        }
+      });
+
+      downloadAll.addEventListener('click', async () => {
+        const nodes = [...document.querySelectorAll('.graphic-export')];
+        const original = downloadAll.textContent;
+        downloadAll.disabled = true;
+        try {
+          for (let index = 0; index < nodes.length; index += 1) {
+            const node = nodes[index];
+            downloadAll.textContent = `Rendering ${index + 1}/${nodes.length}...`;
+            const dataUrl = await renderPng(node);
+            saveDataUrl(dataUrl, node.dataset.filename || `rundown-graphic-${index + 1}.png`);
+            await new Promise((resolve) => window.setTimeout(resolve, 180));
+          }
+        } catch (error) {
+          downloadAll.textContent = error instanceof Error ? 'Download failed' : 'Download failed';
+        } finally {
+          await new Promise((resolve) => window.setTimeout(resolve, 700));
+          downloadAll.disabled = false;
+          downloadAll.textContent = original;
+        }
+      });
+
+    })();
+  </script>
+</body>
+</html>

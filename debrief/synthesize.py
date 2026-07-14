@@ -25,6 +25,7 @@ Output format (JSON field names):
 headline
 * One short sentence
 * Punchy, specific, discussion-oriented
+* Maximum 60 characters, including spaces and punctuation
 
 key_news
 * 2–4 concise bullets explaining what happened
@@ -38,6 +39,7 @@ hard_facts
 * **Max 6 bullets** — pick the best facts from research; merge related ones to fit more in
 * Standalone facts: keep to **~10 words**
 * **Merged facts:** combine related stats/dates/places into one bullet — up to **~20 words** (e.g. "Trial opened April 28; Musk testified April 29, Altman May 12")
+* Maximum 78 characters per bullet, including spaces and punctuation
 * Include stats, dates, places, names, outcomes — mine research for interesting nuggets hosts might not know
 * **No redundancy** with key_news or background
 * No analysis — bare facts only; do not use **bold** in hard_facts
