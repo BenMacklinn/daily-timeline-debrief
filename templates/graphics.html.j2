@@ -307,11 +307,11 @@
     .facts-editor legend {
       display: block;
       margin: 0 0 0.45rem;
-      color: #666;
-      font-size: 0.68rem;
+      color: #222;
+      font-size: 0.78rem;
       font-weight: 900;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      line-height: 1.35;
     }
 
     .facts-editor {
@@ -483,7 +483,7 @@
 
         <div class="card-meta" data-row-editor data-row="{{ row.row }}">
           <fieldset class="facts-editor">
-            <legend>Fast facts</legend>
+            <legend>{{ row.headline | graphic_text(90) }}</legend>
             <p class="facts-note">Green: on graphic · Red: rundown-only</p>
             {% for fact_index in range(editable_max_facts) %}
             {% set fact = row.hard_facts[fact_index] if fact_index < row.hard_facts | length else '' %}
@@ -510,9 +510,12 @@
 
   <script>
     (() => {
+      const PRESENTATION_WINDOW_NAME = 'tbpn-fast-facts';
       const fullscreen = document.getElementById('fullscreen');
       const fullscreenStage = document.getElementById('fullscreen-stage');
       const graphicNodes = [...document.querySelectorAll('.graphic-export')];
+      const fullscreenParams = new URLSearchParams(window.location.search);
+      const isStandalone = fullscreenParams.has('fullscreen');
       let fullscreenIndex = -1;
 
       function graphicText(text, maxChars) {
@@ -566,12 +569,20 @@
             'facts',
             JSON.stringify([...card.querySelectorAll('.fact-input')].map((input) => input.value)),
           );
-          window.open(fullscreenUrl.toString(), '_blank', 'noopener,noreferrer');
+          const presentationWindow = window.open('', PRESENTATION_WINDOW_NAME);
+          if (presentationWindow) {
+            try {
+              presentationWindow.location.href = fullscreenUrl.toString();
+            } catch {
+              presentationWindow.location.href = fullscreenUrl.toString();
+            }
+            presentationWindow.focus();
+          }
         });
       });
 
       async function closeFullscreen() {
-        if (document.body.classList.contains('standalone-graphic')) {
+        if (isStandalone) {
           window.close();
           return;
         }
@@ -596,6 +607,11 @@
       });
       window.addEventListener('resize', fitFullscreenStage);
       document.addEventListener('fullscreenchange', () => {
+        if (isStandalone) {
+          if (document.fullscreenElement === fullscreen) return;
+          if (!document.fullscreenElement) closeFullscreen();
+          return;
+        }
         if (!document.fullscreenElement && !fullscreen.hidden) {
           fullscreen.hidden = true;
           fullscreenStage.replaceChildren();
@@ -603,12 +619,12 @@
       });
 
       const standaloneIndex = Number.parseInt(
-        new URLSearchParams(window.location.search).get('fullscreen'),
+        fullscreenParams.get('fullscreen'),
         10,
       );
       if (Number.isInteger(standaloneIndex) && standaloneIndex >= 0 && standaloneIndex < graphicNodes.length) {
         const standaloneCard = document.querySelectorAll('.card')[standaloneIndex];
-        const factsParam = new URLSearchParams(window.location.search).get('facts');
+        const factsParam = fullscreenParams.get('facts');
         if (factsParam) {
           try {
             const facts = JSON.parse(factsParam);
@@ -622,6 +638,11 @@
         }
         document.body.classList.add('standalone-graphic');
         showFullscreenGraphic(standaloneIndex, false);
+        window.requestAnimationFrame(() => {
+          fullscreen.requestFullscreen?.().catch(() => {
+            // The fixed presentation still fills the tab if fullscreen is unavailable.
+          });
+        });
       }
 
     })();
