@@ -294,6 +294,96 @@
       align-items: flex-start;
       gap: 1rem;
       min-width: 0;
+      border: 1px solid #e5e5e5;
+      border-radius: 0.8rem;
+      background: #fafafa;
+      padding: 1rem;
+    }
+
+    .facts-editor {
+      width: 100%;
+    }
+
+    .facts-editor legend {
+      display: block;
+      margin: 0 0 0.45rem;
+      color: #666;
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .facts-editor {
+      margin: 0;
+      border: 0;
+      padding: 0;
+    }
+
+    .facts-editor legend {
+      padding: 0;
+    }
+
+    .editor-input {
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 0.55rem;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.85rem;
+      line-height: 1.35;
+      padding: 0.6rem 0.7rem;
+    }
+
+    .editor-input:focus {
+      outline: 2px solid rgba(47, 176, 129, 0.35);
+      border-color: var(--green);
+    }
+
+    .fact-editor-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.45rem;
+      margin-top: 0.35rem;
+    }
+
+    .fact-editor-row.extra-fact-start {
+      margin-top: 0.7rem;
+      border-top: 1px solid #d8d8d8;
+      padding-top: 0.55rem;
+    }
+
+    .fact-number {
+      flex: 0 0 1.5rem;
+      color: #888;
+      font-size: 0.7rem;
+      font-weight: 900;
+      line-height: 2.25rem;
+      text-align: center;
+    }
+
+    .fact-input {
+      min-height: 2.05rem;
+      resize: vertical;
+    }
+
+    .fact-input.graphic-fact {
+      border-color: #2fb081;
+      box-shadow: 0 0 0 2px rgba(47, 176, 129, 0.2);
+    }
+
+    .fact-input.extra-fact {
+      border-color: #c84b4b;
+      color: #777;
+      box-shadow: 0 0 0 2px rgba(200, 75, 75, 0.18);
+    }
+
+    .facts-note {
+      margin: -0.1rem 0 0.35rem;
+      color: #777;
+      font-size: 0.68rem;
+      line-height: 1.3;
     }
 
     .row-badge {
@@ -342,6 +432,15 @@
       transform-origin: center;
     }
 
+    .standalone-graphic {
+      min-height: 100vh;
+      background: #000;
+    }
+
+    .standalone-graphic .page-shell {
+      display: none;
+    }
+
     @media (max-width: 980px) {
       .page-header { align-items: flex-start; flex-direction: column; }
       .actions { justify-content: flex-start; }
@@ -358,18 +457,15 @@
       </p>
       <div class="actions">
         <a class="button" href="debrief.html">Show rundown</a>
-        <button class="button button-dark" id="download-all" type="button">Download all PNGs</button>
       </div>
     </header>
 
     <section class="cards">
       {% for row in debrief.rows %}
-      {% set graphic_headline = row.headline | graphic_text(headline_max_chars) %}
-      <article class="card">
+      <article class="card" data-row="{{ row.row }}">
         <div class="preview-wrap">
           <div
             class="graphic-export"
-            data-filename="rundown-row-{{ row.row | lower }}-{{ graphic_headline | graphic_slug }}.png"
             data-row="{{ row.row }}"
           >
             <div class="graphic-background"></div>
@@ -385,17 +481,23 @@
           <button class="fullscreen-button" type="button">Fullscreen</button>
         </div>
 
-        <div class="card-meta">
-          <span class="row-badge">Row {{ row.row }}</span>
-          <div>
-            <p class="copy-label">Headline</p>
-            <p class="copy-value">{{ graphic_headline }} · {{ graphic_headline | length }}/{{ headline_max_chars }}</p>
-          </div>
-          <div>
-            <p class="copy-label">Fast facts</p>
-            <p class="copy-value">{{ row.hard_facts[:max_facts] | length }} of {{ max_facts }} slots filled</p>
-          </div>
-          <button class="button button-primary download-one" type="button">Download PNG</button>
+        <div class="card-meta" data-row-editor data-row="{{ row.row }}">
+          <fieldset class="facts-editor">
+            <legend>Fast facts</legend>
+            <p class="facts-note">Green: on graphic · Red: rundown-only</p>
+            {% for fact_index in range(editable_max_facts) %}
+            {% set fact = row.hard_facts[fact_index] if fact_index < row.hard_facts | length else '' %}
+            <div class="fact-editor-row{% if fact_index == max_facts %} extra-fact-start{% endif %}">
+              <span class="fact-number">{{ fact_index + 1 }}</span>
+              <textarea
+                class="editor-input fact-input {{ 'graphic-fact' if fact_index < max_facts else 'extra-fact' }}"
+                maxlength="{{ fact_max_chars }}"
+                rows="1"
+                aria-label="Fast fact {{ fact_index + 1 }}"
+              >{{ fact }}</textarea>
+            </div>
+            {% endfor %}
+          </fieldset>
         </div>
       </article>
       {% endfor %}
@@ -406,64 +508,32 @@
     <div class="fullscreen-stage" id="fullscreen-stage"></div>
   </div>
 
-  <script src="graphics-assets/html-to-image.js"></script>
   <script>
     (() => {
-      const status = document.getElementById('status');
-      const downloadAll = document.getElementById('download-all');
       const fullscreen = document.getElementById('fullscreen');
       const fullscreenStage = document.getElementById('fullscreen-stage');
       const graphicNodes = [...document.querySelectorAll('.graphic-export')];
       let fullscreenIndex = -1;
 
-      function setStatus(message) {
-        if (status) {
-          status.textContent = message;
-        }
+      function graphicText(text, maxChars) {
+        const cleaned = text.replace(/\*\*(.+?)\*\*/g, '$1').trim();
+        if (cleaned.length <= maxChars) return cleaned;
+        const cut = cleaned.slice(0, maxChars);
+        const lastSpace = cut.lastIndexOf(' ');
+        return (lastSpace > maxChars - 18 ? cut.slice(0, lastSpace) : cut).trim();
       }
 
-      async function imageAssetsReady() {
-        await document.fonts.ready;
-        const background = new Image();
-        background.src = 'graphics-assets/rundown-bg.png';
-        if (!background.complete) {
-          await new Promise((resolve, reject) => {
-            background.addEventListener('load', resolve, { once: true });
-            background.addEventListener('error', reject, { once: true });
-          });
-        }
-      }
-
-      async function renderPng(node) {
-        await imageAssetsReady();
-        return window.htmlToImage.toPng(node, {
-          backgroundColor: '#000000',
-          cacheBust: window.location.protocol !== 'file:',
-          pixelRatio: 3,
-          width: 640,
-          height: 360,
-        });
-      }
-
-      function saveDataUrl(dataUrl, filename) {
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = dataUrl;
-        link.click();
-      }
-
-      async function downloadGraphic(node, button) {
-        const original = button.textContent;
-        button.disabled = true;
-        button.textContent = 'Rendering...';
-        try {
-          const dataUrl = await renderPng(node);
-          saveDataUrl(dataUrl, node.dataset.filename || 'rundown-graphic.png');
-          setStatus(`Downloaded graphic for row ${node.dataset.row || '?'}.`);
-        } finally {
-          button.disabled = false;
-          button.textContent = original;
-        }
+      function updateCardPreview(card) {
+        const graphic = card.querySelector('.graphic-export');
+        const facts = [...card.querySelectorAll('.fact-input')];
+        const factTexts = facts.map((input) => graphicText(input.value, {{ fact_max_chars }}));
+        const factsList = graphic.querySelector('.facts-list');
+        factsList.replaceChildren(...factTexts.slice(0, {{ max_facts }}).filter(Boolean).map((fact) => {
+          const element = document.createElement('div');
+          element.className = 'fact-text';
+          element.textContent = fact;
+          return element;
+        }));
       }
 
       function fitFullscreenStage() {
@@ -471,34 +541,40 @@
         fullscreenStage.style.transform = `scale(${scale})`;
       }
 
-      function showFullscreenGraphic(index) {
+      function showFullscreenGraphic(index, useNativeFullscreen = true) {
         if (!graphicNodes.length) return;
         fullscreenIndex = (index + graphicNodes.length) % graphicNodes.length;
         fullscreenStage.replaceChildren(graphicNodes[fullscreenIndex].cloneNode(true));
         fullscreen.hidden = false;
         fitFullscreenStage();
-        if (!document.fullscreenElement) {
+        if (useNativeFullscreen && !document.fullscreenElement) {
           fullscreen.requestFullscreen?.().catch(() => undefined);
         }
       }
 
       document.querySelectorAll('.card').forEach((card, index) => {
-        const node = card.querySelector('.graphic-export');
-        const downloadButton = card.querySelector('.download-one');
         const fullscreenButton = card.querySelector('.fullscreen-button');
 
-        downloadButton.addEventListener('click', () => {
-          downloadGraphic(node, downloadButton).catch((error) => {
-            setStatus(error instanceof Error ? error.message : 'Could not render graphic.');
-          });
+        card.querySelectorAll('.fact-input').forEach((input) => {
+          input.addEventListener('input', () => updateCardPreview(card));
         });
 
         fullscreenButton.addEventListener('click', () => {
-          showFullscreenGraphic(index);
+          const fullscreenUrl = new URL(window.location.href);
+          fullscreenUrl.searchParams.set('fullscreen', String(index));
+          fullscreenUrl.searchParams.set(
+            'facts',
+            JSON.stringify([...card.querySelectorAll('.fact-input')].map((input) => input.value)),
+          );
+          window.open(fullscreenUrl.toString(), '_blank', 'noopener,noreferrer');
         });
       });
 
       async function closeFullscreen() {
+        if (document.body.classList.contains('standalone-graphic')) {
+          window.close();
+          return;
+        }
         fullscreen.hidden = true;
         fullscreenStage.replaceChildren();
         if (document.fullscreenElement) {
@@ -526,26 +602,27 @@
         }
       });
 
-      downloadAll.addEventListener('click', async () => {
-        const nodes = [...document.querySelectorAll('.graphic-export')];
-        const original = downloadAll.textContent;
-        downloadAll.disabled = true;
-        try {
-          for (let index = 0; index < nodes.length; index += 1) {
-            const node = nodes[index];
-            downloadAll.textContent = `Rendering ${index + 1}/${nodes.length}...`;
-            const dataUrl = await renderPng(node);
-            saveDataUrl(dataUrl, node.dataset.filename || `rundown-graphic-${index + 1}.png`);
-            await new Promise((resolve) => window.setTimeout(resolve, 180));
+      const standaloneIndex = Number.parseInt(
+        new URLSearchParams(window.location.search).get('fullscreen'),
+        10,
+      );
+      if (Number.isInteger(standaloneIndex) && standaloneIndex >= 0 && standaloneIndex < graphicNodes.length) {
+        const standaloneCard = document.querySelectorAll('.card')[standaloneIndex];
+        const factsParam = new URLSearchParams(window.location.search).get('facts');
+        if (factsParam) {
+          try {
+            const facts = JSON.parse(factsParam);
+            standaloneCard.querySelectorAll('.fact-input').forEach((input, factIndex) => {
+              input.value = typeof facts[factIndex] === 'string' ? facts[factIndex] : '';
+            });
+            updateCardPreview(standaloneCard);
+          } catch {
+            // Use the generated facts if the opener's live edits were not encoded.
           }
-        } catch (error) {
-          downloadAll.textContent = error instanceof Error ? 'Download failed' : 'Download failed';
-        } finally {
-          await new Promise((resolve) => window.setTimeout(resolve, 700));
-          downloadAll.disabled = false;
-          downloadAll.textContent = original;
         }
-      });
+        document.body.classList.add('standalone-graphic');
+        showFullscreenGraphic(standaloneIndex, false);
+      }
 
     })();
   </script>

@@ -19,9 +19,9 @@ TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 GRAPHICS_ASSET_DIR = Path(__file__).resolve().parent / "assets" / "graphics"
 GRAPHICS_OUTPUT_DIRNAME = "graphics-assets"
 
-RUNDOWN_HEADLINE_MAX_CHARS = 60
 RUNDOWN_FACT_MAX_CHARS = 62
 RUNDOWN_MAX_GRAPHIC_FACTS = 4
+RUNDOWN_MAX_EDITABLE_FACTS = 6
 
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 
@@ -45,12 +45,6 @@ def graphic_text(text: str, max_chars: int) -> str:
     return cut.rstrip()
 
 
-def graphic_slug(text: str) -> str:
-    cleaned = _BOLD_RE.sub(r"\1", text).lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", cleaned).strip("-")[:40]
-    return slug or "graphic"
-
-
 def get_template_env() -> Environment:
     env = Environment(
         loader=FileSystemLoader(TEMPLATE_DIR),
@@ -58,7 +52,6 @@ def get_template_env() -> Environment:
     )
     env.filters["markdown_bold"] = markdown_bold
     env.filters["graphic_text"] = graphic_text
-    env.filters["graphic_slug"] = graphic_slug
     env.filters["display_image_url"] = display_image_url
     env.globals["fast_facts_pdf_filename"] = fast_facts_pdf_filename
     return env
@@ -104,9 +97,9 @@ def render_graphics(debrief: DailyDebrief) -> str:
     template = env.get_template("graphics.html.j2")
     return template.render(
         debrief=debrief,
-        headline_max_chars=RUNDOWN_HEADLINE_MAX_CHARS,
         fact_max_chars=RUNDOWN_FACT_MAX_CHARS,
         max_facts=RUNDOWN_MAX_GRAPHIC_FACTS,
+        editable_max_facts=RUNDOWN_MAX_EDITABLE_FACTS,
     )
 
 
