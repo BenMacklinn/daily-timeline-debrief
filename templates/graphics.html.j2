@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TBPN Rundown Graphics — {{ debrief.date_iso }}</title>
+  <link rel="preload" href="graphics-assets/RecordLaserFreeze-TBPNMedium.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="graphics-assets/RecordLaserFreeze-TBPNBlack.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="graphics-assets/rundown-bg.png" as="image">
   <style>
     @font-face {
       font-family: "Record Laser Freeze";
@@ -348,6 +351,10 @@
       margin-top: 0.35rem;
     }
 
+    .fact-editor-row.dragging {
+      opacity: 0.45;
+    }
+
     .fact-editor-row.extra-fact-start {
       margin-top: 0.7rem;
       border-top: 1px solid #d8d8d8;
@@ -355,17 +362,27 @@
     }
 
     .fact-number {
+      appearance: none;
       flex: 0 0 1.5rem;
+      border: 0;
+      background: transparent;
       color: #888;
+      cursor: grab;
       font-size: 0.7rem;
       font-weight: 900;
       line-height: 2.25rem;
+      padding: 0;
+      user-select: none;
       text-align: center;
+    }
+
+    .fact-number:active {
+      cursor: grabbing;
     }
 
     .fact-input {
       min-height: 2.05rem;
-      resize: vertical;
+      resize: none;
     }
 
     .fact-input.graphic-fact {
@@ -441,6 +458,14 @@
       display: none;
     }
 
+    .standalone-graphic .fullscreen-stage {
+      visibility: hidden;
+    }
+
+    .standalone-graphic.graphic-assets-ready .fullscreen-stage {
+      visibility: visible;
+    }
+
     @media (max-width: 980px) {
       .page-header { align-items: flex-start; flex-direction: column; }
       .actions { justify-content: flex-start; }
@@ -484,11 +509,16 @@
         <div class="card-meta" data-row-editor data-row="{{ row.row }}">
           <fieldset class="facts-editor">
             <legend>{{ row.headline | graphic_text(90) }}</legend>
-            <p class="facts-note">Green: on graphic · Red: rundown-only</p>
+            <p class="facts-note">Drag numbers to reorder · Green: on graphic · Red: rundown-only</p>
             {% for fact_index in range(editable_max_facts) %}
             {% set fact = row.hard_facts[fact_index] if fact_index < row.hard_facts | length else '' %}
             <div class="fact-editor-row{% if fact_index == max_facts %} extra-fact-start{% endif %}">
-              <span class="fact-number">{{ fact_index + 1 }}</span>
+              <button
+                class="fact-number"
+                type="button"
+                draggable="true"
+                aria-label="Drag fast fact {{ fact_index + 1 }} to reorder"
+              >{{ fact_index + 1 }}</button>
               <textarea
                 class="editor-input fact-input {{ 'graphic-fact' if fact_index < max_facts else 'extra-fact' }}"
                 maxlength="{{ fact_max_chars }}"
@@ -539,9 +569,93 @@
         }));
       }
 
+      function normalizeFactRows(card) {
+        [...card.querySelectorAll('.fact-editor-row')].forEach((row, index) => {
+          const number = row.querySelector('.fact-number');
+          const input = row.querySelector('.fact-input');
+          const isGraphicFact = index < {{ max_facts }};
+          number.textContent = String(index + 1);
+          number.setAttribute('aria-label', `Drag fast fact ${index + 1} to reorder`);
+          input.setAttribute('aria-label', `Fast fact ${index + 1}`);
+          input.classList.toggle('graphic-fact', isGraphicFact);
+          input.classList.toggle('extra-fact', !isGraphicFact);
+          row.classList.toggle('extra-fact-start', index === {{ max_facts }});
+        });
+        updateCardPreview(card);
+      }
+
+      function enableFactReordering(card) {
+        let draggedRow = null;
+
+        card.querySelectorAll('.fact-editor-row').forEach((row) => {
+          const handle = row.querySelector('.fact-number');
+          handle.addEventListener('dragstart', (event) => {
+            draggedRow = row;
+            row.classList.add('dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', row.querySelector('.fact-input').value);
+          });
+
+          row.addEventListener('dragover', (event) => {
+            if (!draggedRow || draggedRow === row) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            const bounds = row.getBoundingClientRect();
+            const insertBefore = event.clientY < bounds.top + bounds.height / 2;
+            row.parentElement.insertBefore(draggedRow, insertBefore ? row : row.nextSibling);
+          });
+
+          row.addEventListener('drop', (event) => {
+            if (!draggedRow) return;
+            event.preventDefault();
+            normalizeFactRows(card);
+          });
+
+          handle.addEventListener('dragend', () => {
+            draggedRow?.classList.remove('dragging');
+            draggedRow = null;
+            normalizeFactRows(card);
+          });
+
+          handle.addEventListener('keydown', (event) => {
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+            const sibling = event.key === 'ArrowUp'
+              ? row.previousElementSibling
+              : row.nextElementSibling;
+            if (!sibling?.classList.contains('fact-editor-row')) return;
+            event.preventDefault();
+            if (event.key === 'ArrowUp') {
+              row.parentElement.insertBefore(row, sibling);
+            } else {
+              row.parentElement.insertBefore(row, sibling.nextElementSibling);
+            }
+            normalizeFactRows(card);
+            handle.focus();
+          });
+        });
+      }
+
       function fitFullscreenStage() {
         const scale = Math.min(window.innerWidth / 640, window.innerHeight / 360);
         fullscreenStage.style.transform = `scale(${scale})`;
+      }
+
+      async function waitForGraphicAssets() {
+        const fontLoads = document.fonts ? [
+          document.fonts.load('900 24px "Record Laser Freeze"'),
+          document.fonts.load('400 17px "Record Laser Freeze Medium"'),
+        ] : [];
+        const headerBackground = new Image();
+        headerBackground.src = new URL('graphics-assets/rundown-bg.png', document.baseURI).href;
+        const imageLoad = typeof headerBackground.decode === 'function'
+          ? headerBackground.decode()
+          : new Promise((resolve, reject) => {
+              headerBackground.addEventListener('load', resolve, { once: true });
+              headerBackground.addEventListener('error', reject, { once: true });
+            });
+
+        await Promise.allSettled([...fontLoads, imageLoad]);
+        if (document.fonts) await document.fonts.ready;
       }
 
       function showFullscreenGraphic(index, useNativeFullscreen = true) {
@@ -557,6 +671,8 @@
 
       document.querySelectorAll('.card').forEach((card, index) => {
         const fullscreenButton = card.querySelector('.fullscreen-button');
+
+        enableFactReordering(card);
 
         card.querySelectorAll('.fact-input').forEach((input) => {
           input.addEventListener('input', () => updateCardPreview(card));
@@ -637,10 +753,18 @@
           }
         }
         document.body.classList.add('standalone-graphic');
-        showFullscreenGraphic(standaloneIndex, false);
+        fullscreen.hidden = false;
+        fitFullscreenStage();
         window.requestAnimationFrame(() => {
           fullscreen.requestFullscreen?.().catch(() => {
             // The fixed presentation still fills the tab if fullscreen is unavailable.
+          });
+        });
+        waitForGraphicAssets().then(() => {
+          showFullscreenGraphic(standaloneIndex, false);
+          window.requestAnimationFrame(() => {
+            fitFullscreenStage();
+            document.body.classList.add('graphic-assets-ready');
           });
         });
       }
