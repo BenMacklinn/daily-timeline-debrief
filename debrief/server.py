@@ -16,6 +16,7 @@ from debrief.image_urls import canonical_image_url, fetch_image_bytes, needs_ima
 from debrief.models import DailyDebrief, ImageResult, ScrapeCache
 from debrief.pdf import write_pdf
 from debrief.research import fetch_topic_images
+from debrief.render import GRAPHICS_ASSET_DIR
 from debrief.scrape_day import fetch_scrape_preview, scrape_live_day
 from debrief.generate_day import generate_debrief_from_scrape
 from debrief.synthesize import synthesize_alternative_fact
@@ -27,6 +28,7 @@ _SCRAPE_TODAY_ROUTE = "/api/scrape/today"
 _SCRAPE_PREVIEW_ROUTE = "/api/scrape/preview"
 _GENERATE_DEBRIEF_ROUTE = "/api/debrief/generate"
 _REGENERATE_FACT_ROUTE = "/api/facts/regenerate"
+_GRAPHICS_ASSET_PREFIX = "/graphics-assets/"
 
 
 def _normalize_path(path: str) -> str:
@@ -62,6 +64,20 @@ def create_http_handler(
 
                 html = render_empty_preview(date_iso=app.date_iso)
                 self._serve_html(html)
+                return
+
+            if path.startswith(_GRAPHICS_ASSET_PREFIX):
+                asset_root = GRAPHICS_ASSET_DIR.resolve()
+                asset_path = (asset_root / path.removeprefix(_GRAPHICS_ASSET_PREFIX)).resolve()
+                try:
+                    asset_path.relative_to(asset_root)
+                except ValueError:
+                    self._json_response(403, {"error": "Forbidden"})
+                    return
+                if not asset_path.is_file():
+                    self._json_response(404, {"error": "Not found"})
+                    return
+                self._serve_file(asset_path, cache_control="public, max-age=86400")
                 return
 
             if path.startswith("/api/"):
@@ -373,12 +389,14 @@ def create_http_handler(
             self.end_headers()
             self.wfile.write(data)
 
-        def _serve_file(self, path: Path) -> None:
+        def _serve_file(self, path: Path, *, cache_control: str | None = None) -> None:
             content_type, _ = mimetypes.guess_type(str(path))
             content_type = content_type or "application/octet-stream"
             data = path.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", content_type)
+            if cache_control:
+                self.send_header("Cache-Control", cache_control)
             if path.name == "debrief.pdf":
                 filename = fast_facts_pdf_filename(self._app().date_iso)
                 self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
