@@ -391,6 +391,8 @@ def create_http_handler(
 
         def _serve_file(self, path: Path, *, cache_control: str | None = None) -> None:
             content_type, _ = mimetypes.guess_type(str(path))
+            if path.suffix.lower() == ".ttf":
+                content_type = "font/ttf"
             content_type = content_type or "application/octet-stream"
             data = path.read_bytes()
             self.send_response(200)
