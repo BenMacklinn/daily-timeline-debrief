@@ -773,6 +773,16 @@
           updateCardPreview(card);
         });
 
+        if (isStandalone) {
+          try {
+            const recoveryUrl = new URL(window.location.href);
+            recoveryUrl.searchParams.set('facts', JSON.stringify(collectPresentationFacts()));
+            window.history.replaceState(null, '', recoveryUrl);
+          } catch {
+            // Live updates still work if this browser refuses URL replacement.
+          }
+        }
+
         if (!fullscreen.hidden && fullscreenIndex >= 0) {
           showFullscreenGraphic(fullscreenIndex, false);
         }
@@ -865,6 +875,7 @@
         fullscreenButton.addEventListener('click', () => {
           const fullscreenUrl = new URL(window.location.href);
           fullscreenUrl.searchParams.set('fullscreen', String(index));
+          fullscreenUrl.searchParams.set('date', '{{ debrief.date_iso }}');
           fullscreenUrl.searchParams.set(
             'facts',
             JSON.stringify(collectPresentationFacts()),

@@ -8,6 +8,7 @@ import webbrowser
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import parse_qs, unquote, urlparse
 
 from debrief.cache import load_scrape, remove_row_image, reorder_row_images, update_row_images
@@ -16,7 +17,7 @@ from debrief.image_urls import canonical_image_url, fetch_image_bytes, needs_ima
 from debrief.models import DailyDebrief, ImageResult, ScrapeCache
 from debrief.pdf import write_pdf
 from debrief.research import fetch_topic_images
-from debrief.render import GRAPHICS_ASSET_DIR
+from debrief.render import GRAPHICS_ASSET_DIR, render_graphics
 from debrief.scrape_day import fetch_scrape_preview, scrape_live_day
 from debrief.generate_day import generate_debrief_from_scrape
 from debrief.synthesize import synthesize_alternative_fact
@@ -111,6 +112,15 @@ def create_http_handler(
                     return
             if candidate.is_file():
                 self._serve_file(candidate)
+                return
+
+            if relative == "graphics.html" and "fullscreen" in parse_qs(parsed.query):
+                try:
+                    html = app.render_recovery_graphics(parsed.query)
+                except ValueError as exc:
+                    self._json_response(400, {"error": str(exc)})
+                    return
+                self._serve_html(html)
                 return
 
             self._json_response(404, {"error": "Not found"})
@@ -470,6 +480,58 @@ class DebriefServer:
 
         daily = DailyDebrief.model_validate(json.loads(json_path.read_text(encoding="utf-8")))
         return write_pdf(daily, pdf_path)
+
+    def render_recovery_graphics(self, query: str) -> str:
+        """Rebuild a standalone graphics page from its URL when /tmp output is gone."""
+        params = parse_qs(query)
+        raw_facts = params.get("facts", [""])[0]
+        if not raw_facts:
+            raise ValueError("Missing facts for fullscreen recovery")
+        try:
+            facts = json.loads(raw_facts)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Invalid facts for fullscreen recovery") from exc
+
+        try:
+            fullscreen_index = int(params.get("fullscreen", ["0"])[0])
+        except ValueError as exc:
+            raise ValueError("Invalid fullscreen index") from exc
+        if fullscreen_index < 0 or fullscreen_index >= 50:
+            raise ValueError("Fullscreen index is out of range")
+
+        if isinstance(facts, list) and all(isinstance(fact, str) for fact in facts):
+            facts_by_card: list[list[str]] = [[] for _ in range(fullscreen_index + 1)]
+            facts_by_card[fullscreen_index] = facts
+        elif (
+            isinstance(facts, list)
+            and facts
+            and all(isinstance(card_facts, list) for card_facts in facts)
+        ):
+            facts_by_card = facts
+        else:
+            raise ValueError("Facts must contain one or more graphics")
+
+        if len(facts_by_card) > 50 or fullscreen_index >= len(facts_by_card):
+            raise ValueError("Fullscreen facts are out of range")
+        for card_facts in facts_by_card:
+            if len(card_facts) > 6 or not all(
+                isinstance(fact, str) and len(fact) <= 200 for fact in card_facts
+            ):
+                raise ValueError("Each graphic must contain up to six text facts")
+
+        date_iso = params.get("date", [self.date_iso])[0]
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_iso):
+            date_iso = self.date_iso
+        rows = [
+            SimpleNamespace(
+                row=f"Graphic {index + 1}",
+                headline="",
+                hard_facts=card_facts,
+            )
+            for index, card_facts in enumerate(facts_by_card)
+        ]
+        recovery_debrief = SimpleNamespace(date_iso=date_iso, rows=rows)
+        return render_graphics(recovery_debrief)
 
     def regenerate_fact(self, row_label: str, existing_facts: list[str]) -> str:
         json_path = self.output_dir / "debrief.json"
