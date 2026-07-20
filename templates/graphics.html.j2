@@ -913,8 +913,8 @@
       window.addEventListener('resize', resizeAllFactInputs);
       document.addEventListener('fullscreenchange', () => {
         if (isStandalone) {
-          if (document.fullscreenElement === fullscreen) return;
-          if (!document.fullscreenElement) closeFullscreen();
+          fullscreen.hidden = false;
+          fitFullscreenStage();
           return;
         }
         if (!document.fullscreenElement && !fullscreen.hidden) {
