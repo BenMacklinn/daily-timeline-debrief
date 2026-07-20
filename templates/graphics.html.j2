@@ -381,8 +381,12 @@
     }
 
     .fact-input {
+      flex: 1 1 auto;
+      min-width: 0;
       min-height: 2.05rem;
+      overflow-y: hidden;
       resize: none;
+      width: auto;
     }
 
     .fact-input.graphic-fact {
@@ -396,11 +400,58 @@
       box-shadow: 0 0 0 2px rgba(200, 75, 75, 0.18);
     }
 
+    .regenerate-fact {
+      appearance: none;
+      flex: 0 0 auto;
+      min-height: 2.15rem;
+      border: 1px solid #b8b8b8;
+      border-radius: 0.55rem;
+      background: #fff;
+      color: #333;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.7rem;
+      font-weight: 900;
+      line-height: 1;
+      padding: 0.55rem 0.65rem;
+      white-space: nowrap;
+    }
+
+    .regenerate-fact:hover:not(:disabled) {
+      border-color: var(--green);
+      color: #176c4d;
+    }
+
+    .regenerate-fact:focus-visible {
+      outline: 2px solid rgba(47, 176, 129, 0.35);
+      outline-offset: 1px;
+    }
+
+    .regenerate-fact:disabled {
+      cursor: wait;
+      opacity: 0.55;
+    }
+
     .facts-note {
       margin: -0.1rem 0 0.35rem;
       color: #777;
       font-size: 0.68rem;
       line-height: 1.3;
+    }
+
+    .fact-generation-status {
+      margin: 0.15rem 0 0.35rem;
+      color: #176c4d;
+      font-size: 0.7rem;
+      line-height: 1.3;
+    }
+
+    .fact-generation-status[data-error="true"] {
+      color: #a12d2d;
+    }
+
+    .fact-generation-status:empty {
+      display: none;
     }
 
     .row-badge {
@@ -503,13 +554,18 @@
               </div>
             </div>
           </div>
-          <button class="fullscreen-button" type="button">Fullscreen</button>
+          <button
+            class="fullscreen-button"
+            type="button"
+            title="Open presentation tab; use left and right arrow keys"
+          >Fullscreen</button>
         </div>
 
         <div class="card-meta" data-row-editor data-row="{{ row.row }}">
           <fieldset class="facts-editor">
             <legend>{{ row.headline | graphic_text(90) }}</legend>
             <p class="facts-note">Drag numbers to reorder · Green: on graphic · Red: rundown-only</p>
+            <p class="fact-generation-status" aria-live="polite"></p>
             {% for fact_index in range(editable_max_facts) %}
             {% set fact = row.hard_facts[fact_index] if fact_index < row.hard_facts | length else '' %}
             <div class="fact-editor-row{% if fact_index == max_facts %} extra-fact-start{% endif %}">
@@ -525,6 +581,12 @@
                 rows="1"
                 aria-label="Fast fact {{ fact_index + 1 }}"
               >{{ fact }}</textarea>
+              <button
+                class="regenerate-fact"
+                type="button"
+                aria-label="Generate a replacement for fast fact {{ fact_index + 1 }}"
+                title="Generate a different fact from this rundown"
+              >New fact</button>
             </div>
             {% endfor %}
           </fieldset>
@@ -569,17 +631,30 @@
         }));
       }
 
+      function resizeFactInput(input) {
+        input.style.height = 'auto';
+        const borderHeight = input.offsetHeight - input.clientHeight;
+        input.style.height = `${input.scrollHeight + borderHeight}px`;
+      }
+
+      function resizeAllFactInputs() {
+        document.querySelectorAll('.fact-input').forEach(resizeFactInput);
+      }
+
       function normalizeFactRows(card) {
         [...card.querySelectorAll('.fact-editor-row')].forEach((row, index) => {
           const number = row.querySelector('.fact-number');
           const input = row.querySelector('.fact-input');
+          const regenerate = row.querySelector('.regenerate-fact');
           const isGraphicFact = index < {{ max_facts }};
           number.textContent = String(index + 1);
           number.setAttribute('aria-label', `Drag fast fact ${index + 1} to reorder`);
           input.setAttribute('aria-label', `Fast fact ${index + 1}`);
+          regenerate.setAttribute('aria-label', `Generate a replacement for fast fact ${index + 1}`);
           input.classList.toggle('graphic-fact', isGraphicFact);
           input.classList.toggle('extra-fact', !isGraphicFact);
           row.classList.toggle('extra-fact-start', index === {{ max_facts }});
+          resizeFactInput(input);
         });
         updateCardPreview(card);
       }
@@ -669,13 +744,70 @@
         }
       }
 
+      function collectPresentationFacts() {
+        return [...document.querySelectorAll('.card')].map((card) =>
+          [...card.querySelectorAll('.fact-input')].map((input) => input.value),
+        );
+      }
+
+      async function regenerateFact(card, input, button) {
+        const status = card.querySelector('.fact-generation-status');
+        const rowLabel = card.dataset.row;
+        const existingFacts = [...card.querySelectorAll('.fact-input')]
+          .map((factInput) => factInput.value.trim());
+        const buttons = [...card.querySelectorAll('.regenerate-fact')];
+        const factNumber = [...card.querySelectorAll('.fact-input')].indexOf(input) + 1;
+
+        buttons.forEach((candidate) => { candidate.disabled = true; });
+        button.textContent = 'Writing…';
+        status.dataset.error = 'false';
+        status.textContent = `Generating a replacement for fact ${factNumber}…`;
+
+        try {
+          const response = await fetch('/api/facts/regenerate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ row: rowLabel, existing_facts: existingFacts }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.error || `Request failed (${response.status})`);
+          }
+          if (typeof payload.fact !== 'string' || !payload.fact.trim()) {
+            throw new Error('The server did not return a replacement fact.');
+          }
+
+          input.value = payload.fact.trim();
+          resizeFactInput(input);
+          updateCardPreview(card);
+          status.textContent = `Fact ${factNumber} replaced.`;
+          input.focus();
+          input.select();
+        } catch (error) {
+          status.dataset.error = 'true';
+          status.textContent = error instanceof Error ? error.message : 'Could not generate a fact.';
+        } finally {
+          buttons.forEach((candidate) => { candidate.disabled = false; });
+          button.textContent = 'New fact';
+        }
+      }
+
       document.querySelectorAll('.card').forEach((card, index) => {
         const fullscreenButton = card.querySelector('.fullscreen-button');
 
         enableFactReordering(card);
 
         card.querySelectorAll('.fact-input').forEach((input) => {
-          input.addEventListener('input', () => updateCardPreview(card));
+          resizeFactInput(input);
+          input.addEventListener('input', () => {
+            resizeFactInput(input);
+            updateCardPreview(card);
+          });
+        });
+
+        card.querySelectorAll('.regenerate-fact').forEach((button) => {
+          const input = button.closest('.fact-editor-row').querySelector('.fact-input');
+          button.addEventListener('click', () => regenerateFact(card, input, button));
         });
 
         fullscreenButton.addEventListener('click', () => {
@@ -683,7 +815,7 @@
           fullscreenUrl.searchParams.set('fullscreen', String(index));
           fullscreenUrl.searchParams.set(
             'facts',
-            JSON.stringify([...card.querySelectorAll('.fact-input')].map((input) => input.value)),
+            JSON.stringify(collectPresentationFacts()),
           );
           const presentationWindow = window.open('', PRESENTATION_WINDOW_NAME);
           if (presentationWindow) {
@@ -693,9 +825,13 @@
               presentationWindow.location.href = fullscreenUrl.toString();
             }
             presentationWindow.focus();
+          } else {
+            showFullscreenGraphic(index);
           }
         });
       });
+
+      document.fonts?.ready.then(resizeAllFactInputs);
 
       async function closeFullscreen() {
         if (isStandalone) {
@@ -722,6 +858,7 @@
         }
       });
       window.addEventListener('resize', fitFullscreenStage);
+      window.addEventListener('resize', resizeAllFactInputs);
       document.addEventListener('fullscreenchange', () => {
         if (isStandalone) {
           if (document.fullscreenElement === fullscreen) return;
@@ -744,16 +881,25 @@
         if (factsParam) {
           try {
             const facts = JSON.parse(factsParam);
-            standaloneCard.querySelectorAll('.fact-input').forEach((input, factIndex) => {
-              input.value = typeof facts[factIndex] === 'string' ? facts[factIndex] : '';
+            const cards = [...document.querySelectorAll('.card')];
+            const factsByCard = Array.isArray(facts[0])
+              ? facts
+              : cards.map((_, cardIndex) => cardIndex === standaloneIndex ? facts : null);
+            cards.forEach((card, cardIndex) => {
+              const cardFacts = factsByCard[cardIndex];
+              if (!Array.isArray(cardFacts)) return;
+              card.querySelectorAll('.fact-input').forEach((input, factIndex) => {
+                input.value = typeof cardFacts[factIndex] === 'string' ? cardFacts[factIndex] : '';
+              });
+              updateCardPreview(card);
             });
-            updateCardPreview(standaloneCard);
           } catch {
             // Use the generated facts if the opener's live edits were not encoded.
           }
         }
         document.body.classList.add('standalone-graphic');
         fullscreen.hidden = false;
+        showFullscreenGraphic(standaloneIndex, false);
         fitFullscreenStage();
         window.requestAnimationFrame(() => {
           fullscreen.requestFullscreen?.().catch(() => {
@@ -761,7 +907,6 @@
           });
         });
         waitForGraphicAssets().then(() => {
-          showFullscreenGraphic(standaloneIndex, false);
           window.requestAnimationFrame(() => {
             fitFullscreenStage();
             document.body.classList.add('graphic-assets-ready');

@@ -18,6 +18,7 @@ from debrief.pdf import write_pdf
 from debrief.research import fetch_topic_images
 from debrief.scrape_day import fetch_scrape_preview, scrape_live_day
 from debrief.generate_day import generate_debrief_from_scrape
+from debrief.synthesize import synthesize_alternative_fact
 
 _IMAGE_ROUTE = re.compile(r"^/api/images/([^/]+)/([^/]+)/?$")
 _IMAGE_ORDER_ROUTE = re.compile(r"^/api/images/([^/]+)/([^/]+)/order/?$")
@@ -25,6 +26,7 @@ _IMAGE_PROXY_ROUTE = "/api/image-proxy"
 _SCRAPE_TODAY_ROUTE = "/api/scrape/today"
 _SCRAPE_PREVIEW_ROUTE = "/api/scrape/preview"
 _GENERATE_DEBRIEF_ROUTE = "/api/debrief/generate"
+_REGENERATE_FACT_ROUTE = "/api/facts/regenerate"
 
 
 def _normalize_path(path: str) -> str:
@@ -151,6 +153,51 @@ def create_http_handler(
                     self._json_response(500, {"error": str(exc)})
                     return
                 self._json_response(200, payload)
+                return
+
+            if path == _REGENERATE_FACT_ROUTE:
+                try:
+                    body = self._read_json_body()
+                except (json.JSONDecodeError, ValueError) as exc:
+                    self._json_response(400, {"error": str(exc)})
+                    return
+
+                row_label = body.get("row")
+                existing_facts = body.get("existing_facts")
+                if not isinstance(row_label, str) or not row_label.strip():
+                    self._json_response(400, {"error": "row must be a non-empty string"})
+                    return
+                if (
+                    not isinstance(existing_facts, list)
+                    or len(existing_facts) > 6
+                    or not all(
+                        isinstance(fact, str) and len(fact) <= 62 for fact in existing_facts
+                    )
+                ):
+                    self._json_response(
+                        400,
+                        {
+                            "error": (
+                                "existing_facts must be a list of up to six strings, "
+                                "each no longer than 62 characters"
+                            )
+                        },
+                    )
+                    return
+
+                try:
+                    fact = app.regenerate_fact(row_label.strip(), existing_facts)
+                except (FileNotFoundError, KeyError) as exc:
+                    self._json_response(404, {"error": str(exc)})
+                    return
+                except ValueError as exc:
+                    self._json_response(400, {"error": str(exc)})
+                    return
+                except Exception as exc:
+                    self._json_response(500, {"error": str(exc)})
+                    return
+
+                self._json_response(200, {"row": row_label.strip(), "fact": fact})
                 return
 
             order_match = _IMAGE_ORDER_ROUTE.match(path)
@@ -403,6 +450,23 @@ class DebriefServer:
 
         daily = DailyDebrief.model_validate(json.loads(json_path.read_text(encoding="utf-8")))
         return write_pdf(daily, pdf_path)
+
+    def regenerate_fact(self, row_label: str, existing_facts: list[str]) -> str:
+        json_path = self.output_dir / "debrief.json"
+        if not json_path.exists():
+            raise FileNotFoundError(f"No generated rundown found at {json_path}")
+
+        daily = DailyDebrief.model_validate(json.loads(json_path.read_text(encoding="utf-8")))
+        row = next((entry for entry in daily.rows if entry.row == row_label), None)
+        if row is None:
+            raise KeyError(f"Unknown rundown row {row_label!r}")
+
+        return synthesize_alternative_fact(
+            row,
+            existing_facts,
+            model=self.model,
+            reasoning_effort=self.reasoning_effort,
+        )
 
     def fetch_and_store_images(self, row_label: str) -> list[ImageResult]:
         scrape = load_scrape(self.cache_dir, self.date_iso)

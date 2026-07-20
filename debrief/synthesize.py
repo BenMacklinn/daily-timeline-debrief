@@ -2,11 +2,30 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 from openai import OpenAI
+from pydantic import BaseModel, Field, field_validator
 
 from debrief.models import ResearchBundle, RowDebrief, RowGroup
 from debrief.openai_utils import openai_json_schema
+
+
+ALTERNATIVE_FACT_MAX_CHARS = 62
+
+
+class AlternativeFact(BaseModel):
+    fact: str = Field(min_length=1, max_length=ALTERNATIVE_FACT_MAX_CHARS)
+
+    @field_validator("fact")
+    @classmethod
+    def clean_fact(cls, fact: str) -> str:
+        cleaned = re.sub(r"\*\*(.+?)\*\*", r"\1", fact).strip()
+        if not cleaned:
+            raise ValueError("fact cannot be empty")
+        if len(cleaned.split()) > 20:
+            raise ValueError("fact cannot exceed 20 words")
+        return cleaned
 
 SYSTEM_PROMPT = """You write TBPN-style live reaction notes for tech/business news stories.
 
@@ -136,3 +155,67 @@ def synthesize_row_debrief(
     data["row"] = group.label
     data["tag"] = group.tag
     return RowDebrief.model_validate(data)
+
+
+def _fact_key(fact: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", fact.casefold()).strip()
+
+
+def synthesize_alternative_fact(
+    row: RowDebrief,
+    existing_facts: list[str],
+    *,
+    model: str = "gpt-5.5",
+    reasoning_effort: str = "low",
+) -> str:
+    """Generate one fact grounded in a row's rundown and distinct from current slots."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is required to generate a replacement fact.")
+    client = OpenAI(api_key=api_key)
+    exclusions = [fact.strip() for fact in existing_facts if fact.strip()]
+    excluded_keys = {_fact_key(fact) for fact in exclusions}
+    schema = openai_json_schema(AlternativeFact)
+    rundown = {
+        "headline": row.headline,
+        "key_news": row.key_news,
+        "background": row.background,
+        "original_hard_facts": row.hard_facts,
+    }
+    prompt = {
+        "task": (
+            "Write one new TBPN fast fact supported by the generated rundown. "
+            "It must add a concrete detail that is not the same as, or a paraphrase of, "
+            "any fact currently in the six slots. Return a bare fact with no analysis, "
+            "markdown, label, or lead-in. Maximum 62 characters and 20 words."
+        ),
+        "row": row.row,
+        "generated_rundown": rundown,
+        "facts_currently_in_slots": exclusions,
+    }
+
+    kwargs: dict = {
+        "model": model,
+        "instructions": (
+            "You replace one fast fact in a live tech and business rundown. Use only "
+            "information explicitly present in the supplied generated rundown. Never "
+            "invent details. Avoid semantic duplication with every excluded fact."
+        ),
+        "input": json.dumps(prompt, ensure_ascii=False),
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "alternative_fact",
+                "schema": schema,
+                "strict": True,
+            }
+        },
+    }
+    if reasoning_effort and model.startswith("gpt-5"):
+        kwargs["reasoning"] = {"effort": reasoning_effort}
+
+    response = client.responses.create(**kwargs)
+    candidate = AlternativeFact.model_validate(json.loads(response.output_text)).fact
+    if _fact_key(candidate) in excluded_keys:
+        raise RuntimeError("The model returned a fact already in the current slots. Try again.")
+    return candidate
