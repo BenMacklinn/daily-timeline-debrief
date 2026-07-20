@@ -603,12 +603,17 @@
   <script>
     (() => {
       const PRESENTATION_WINDOW_NAME = 'tbpn-fast-facts';
+      const PRESENTATION_CHANNEL_NAME = 'tbpn-fast-facts-live-{{ debrief.date_iso }}';
       const fullscreen = document.getElementById('fullscreen');
       const fullscreenStage = document.getElementById('fullscreen-stage');
       const graphicNodes = [...document.querySelectorAll('.graphic-export')];
       const fullscreenParams = new URLSearchParams(window.location.search);
       const isStandalone = fullscreenParams.has('fullscreen');
+      const presentationChannel = typeof BroadcastChannel === 'function'
+        ? new BroadcastChannel(PRESENTATION_CHANNEL_NAME)
+        : null;
       let fullscreenIndex = -1;
+      let presentationWindow = null;
 
       function graphicText(text, maxChars) {
         const cleaned = text.replace(/\*\*(.+?)\*\*/g, '$1').trim();
@@ -657,6 +662,7 @@
           resizeFactInput(input);
         });
         updateCardPreview(card);
+        publishPresentationFacts();
       }
 
       function enableFactReordering(card) {
@@ -750,6 +756,50 @@
         );
       }
 
+      function applyPresentationFacts(facts, legacyIndex = fullscreenIndex) {
+        if (!Array.isArray(facts)) return;
+        const cards = [...document.querySelectorAll('.card')];
+        const factsByCard = Array.isArray(facts[0])
+          ? facts
+          : cards.map((_, cardIndex) => cardIndex === legacyIndex ? facts : null);
+
+        cards.forEach((card, cardIndex) => {
+          const cardFacts = factsByCard[cardIndex];
+          if (!Array.isArray(cardFacts)) return;
+          card.querySelectorAll('.fact-input').forEach((input, factIndex) => {
+            input.value = typeof cardFacts[factIndex] === 'string' ? cardFacts[factIndex] : '';
+            resizeFactInput(input);
+          });
+          updateCardPreview(card);
+        });
+
+        if (!fullscreen.hidden && fullscreenIndex >= 0) {
+          showFullscreenGraphic(fullscreenIndex, false);
+        }
+      }
+
+      function publishPresentationFacts() {
+        if (isStandalone) return;
+        const message = {
+          type: 'facts',
+          facts: collectPresentationFacts(),
+        };
+        if (presentationChannel) {
+          presentationChannel.postMessage(message);
+        } else if (presentationWindow && !presentationWindow.closed) {
+          presentationWindow.postMessage(message, window.location.origin);
+        }
+      }
+
+      function handlePresentationMessage(message) {
+        if (!message || typeof message !== 'object') return;
+        if (message.type === 'facts' && isStandalone) {
+          applyPresentationFacts(message.facts);
+        } else if (message.type === 'ready' && !isStandalone) {
+          publishPresentationFacts();
+        }
+      }
+
       async function regenerateFact(card, input, button) {
         const status = card.querySelector('.fact-generation-status');
         const rowLabel = card.dataset.row;
@@ -780,6 +830,7 @@
           input.value = payload.fact.trim();
           resizeFactInput(input);
           updateCardPreview(card);
+          publishPresentationFacts();
           status.textContent = `Fact ${factNumber} replaced.`;
           input.focus();
           input.select();
@@ -802,6 +853,7 @@
           input.addEventListener('input', () => {
             resizeFactInput(input);
             updateCardPreview(card);
+            publishPresentationFacts();
           });
         });
 
@@ -817,7 +869,7 @@
             'facts',
             JSON.stringify(collectPresentationFacts()),
           );
-          const presentationWindow = window.open('', PRESENTATION_WINDOW_NAME);
+          presentationWindow = window.open('', PRESENTATION_WINDOW_NAME);
           if (presentationWindow) {
             try {
               presentationWindow.location.href = fullscreenUrl.toString();
@@ -876,23 +928,11 @@
         10,
       );
       if (Number.isInteger(standaloneIndex) && standaloneIndex >= 0 && standaloneIndex < graphicNodes.length) {
-        const standaloneCard = document.querySelectorAll('.card')[standaloneIndex];
         const factsParam = fullscreenParams.get('facts');
         if (factsParam) {
           try {
             const facts = JSON.parse(factsParam);
-            const cards = [...document.querySelectorAll('.card')];
-            const factsByCard = Array.isArray(facts[0])
-              ? facts
-              : cards.map((_, cardIndex) => cardIndex === standaloneIndex ? facts : null);
-            cards.forEach((card, cardIndex) => {
-              const cardFacts = factsByCard[cardIndex];
-              if (!Array.isArray(cardFacts)) return;
-              card.querySelectorAll('.fact-input').forEach((input, factIndex) => {
-                input.value = typeof cardFacts[factIndex] === 'string' ? cardFacts[factIndex] : '';
-              });
-              updateCardPreview(card);
-            });
+            applyPresentationFacts(facts, standaloneIndex);
           } catch {
             // Use the generated facts if the opener's live edits were not encoded.
           }
@@ -912,6 +952,22 @@
             document.body.classList.add('graphic-assets-ready');
           });
         });
+      }
+
+      presentationChannel?.addEventListener('message', (event) => {
+        handlePresentationMessage(event.data);
+      });
+      window.addEventListener('message', (event) => {
+        if (event.origin !== window.location.origin) return;
+        handlePresentationMessage(event.data);
+      });
+      if (isStandalone) {
+        const readyMessage = { type: 'ready' };
+        if (presentationChannel) {
+          presentationChannel.postMessage(readyMessage);
+        } else {
+          window.opener?.postMessage(readyMessage, window.location.origin);
+        }
       }
 
     })();
